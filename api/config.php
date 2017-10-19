@@ -27,12 +27,12 @@ namespace Emojione;
  */
 
 define('DISQUS_PUBKEY', 'E8Uh5l5fHZ6gD8U3KycjAIAk46f68Zw7C6eW8WSjZvCLXebZ7p0r1yrYDrLilk2F');
-define('DISQUS_USERNAME', '');
-define('DISQUS_EMAIL', '');
-define('DISQUS_PASSWORD', '');
-define('DISQUS_WEBSITE', '');
-define('DISQUS_SHORTNAME', '');
-define('DISQUS_APPROVED', true);
+define('DISQUS_USERNAME', getenv('DISQUS_USERNAME'));
+define('DISQUS_EMAIL', getenv('DISQUS_EMAIL'));
+define('DISQUS_PASSWORD', getenv('DISQUS_PASSWORD'));
+define('DISQUS_WEBSITE', getenv('DISQUS_WEBSITE'));
+define('DISQUS_SHORTNAME', getenv('DISQUS_SHORTNAME'));
+define('DISQUS_APPROVED', getenv('DISQUS_APPROVED'));
 
 /*
  * 网络设置
@@ -43,9 +43,9 @@ define('DISQUS_APPROVED', true);
  *
  */
 
-define('GFW_INSIDE', false);
-define('DISQUS_IP', '151.101.0.134'); 
-define('DISQUS_MEDIAIP', '151.101.24.64');
+define('GFW_INSIDE', getenv('GFW_INSIDE'));
+define('DISQUS_IP', getenv('DISQUS_IP')); 
+define('DISQUS_MEDIAIP', getenv('DISQUS_MEDIAIP'));
 
 /*
  * 图片设置
@@ -56,9 +56,9 @@ define('DISQUS_MEDIAIP', '151.101.24.64');
  *
  */
  
-define('GRAVATAR_CDN', '//cn.gravatar.com/avatar/');
-define('GRAVATAR_DEFAULT', 'https://a.disquscdn.com/images/noavatar92.png');
-define('EMOJI_PATH', 'https://assets-cdn.github.com/images/icons/emoji/unicode/');
+define('GRAVATAR_CDN', getenv('GRAVATAR_CDN'));
+define('GRAVATAR_DEFAULT', getenv('GRAVATAR_DEFAULT'));
+define('EMOJI_PATH', getenv('EMOJI_PATH'));
 
 /*
  * PHP Mailer 设置
@@ -72,9 +72,9 @@ define('EMOJI_PATH', 'https://assets-cdn.github.com/images/icons/emoji/unicode/'
  *
  */
 
-define('SITE_NAME', '');
-define('SMTP_SECURE', 'ssl');
-define('SMTP_HOST', '');
-define('SMTP_PORT', 465);
-define('SMTP_USERNAME', '');
-define('SMTP_PASSWORD', '');
+define('SITE_NAME', getenv('SITE_NAME'));
+define('SMTP_SECURE', getenv('SMTP_SECURE'));
+define('SMTP_HOST', getenv('SMTP_HOST'));
+define('SMTP_PORT', getenv('SMTP_PORT'));
+define('SMTP_USERNAME', getenv('SMTP_USERNAME'));
+define('SMTP_PASSWORD', getenv('SMTP_PASSWORD'));
