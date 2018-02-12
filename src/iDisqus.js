@@ -477,21 +477,23 @@
     // 加载 Disqus 评论
     iDisqus.prototype.disqus = function(){
         var _ = this;
+        // _.dom.querySelector('#disqus_thread').style.visibility = 'visible';
         var _tip = _.dom.querySelector('.loading-container').dataset.tip;
         if(_.opts.site != location.origin){
-            //console.log('本地环境不加载 Disqus 评论框！');
-            if( _.opts.mode == 1 ){
-                _.getlist();
-            }
-            return;
+                //console.log('本地环境不加载 Disqus 评论框！');
+                if( _.opts.mode == 1 ){
+                        _.getlist();
+                    }
+                    return;
         }
         if(!_.stat.disqusLoaded ){
             _tip = '尝试连接 Disqus……';
-
+            
             var s = d.createElement('script');
             s.src = '//'+_.opts.forum+'.disqus.com/embed.js';
             s.dataset.timestamp = Date.now();
             s.onload = function(){
+                _.dom.querySelector('#idisqus').style.display = 'none';
                 _.stat.disqusLoaded = true;
                 _tip = '连接成功，加载 Disqus 评论框……'
             } 
@@ -590,7 +592,7 @@
         var _ = this;
         _.stat.loading = true;
         _.dom.querySelector('#idisqus').style.display = 'block';
-        _.dom.querySelector('#disqus_thread').style.display = 'none';
+        // _.dom.querySelector('#disqus_thread').style.visibility = 'hidden';
         getAjax(
             _.opts.api + '/getcomments.php?link=' + _.opts.url + (!!_.stat.next ? '&cursor=' + _.stat.next : ''),
             function(resp){
