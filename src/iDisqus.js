@@ -371,7 +371,7 @@
             '    <div class="loading-container" data-tip="正在加载评论……"><svg class="loading-bg" width="72" height="72" viewBox="0 0 720 720" version="1.1" xmlns="http://www.w3.org/2000/svg"><path class="ring" fill="none" stroke="#9d9ea1" d="M 0 -260 A 260 260 0 1 1 -80 -260" transform="translate(400,400)" stroke-width="50" /><polygon transform="translate(305,20)" points="50,0 0,100 18,145 50,82 92,145 100,100" style="fill:#9d9ea1"/></svg></div>\n'+
             '    <div class="comment-header"><span class="comment-header-item" id="comment-count">评论</span><a target="_blank" class="comment-header-item" id="comment-link">Disqus 讨论区</a></div>\n'+
             '    <div class="comment-box">\n'+
-            '        <div class="comment-avatar avatar"><img class="comment-avatar-image" src="https://ooo.0o0.ooo/2018/02/12/5a814be6d5e7f.png"></div>\n'+
+            '        <div class="comment-avatar avatar"><img class="comment-avatar-image" src="https://a.disquscdn.com/images/noavatar92.png"></div>\n'+
             '        <div class="comment-form">\n'+
             '            <div class="comment-form-wrapper">\n'+
             '                <textarea class="comment-form-textarea" placeholder="加入讨论……"></textarea>\n'+
@@ -477,18 +477,17 @@
     // 加载 Disqus 评论
     iDisqus.prototype.disqus = function(){
         var _ = this;
-        // _.dom.querySelector('#disqus_thread').style.visibility = 'visible';
         var _tip = _.dom.querySelector('.loading-container').dataset.tip;
         if(_.opts.site != location.origin){
-                //console.log('本地环境不加载 Disqus 评论框！');
-                if( _.opts.mode == 1 ){
-                        _.getlist();
-                    }
-                    return;
+            //console.log('本地环境不加载 Disqus 评论框！');
+            if( _.opts.mode == 1 ){
+                _.getlist();
+            }
+            return;
         }
         if(!_.stat.disqusLoaded ){
             _tip = '尝试连接 Disqus……';
-            
+
             var s = d.createElement('script');
             s.src = '//'+_.opts.forum+'.disqus.com/embed.js';
             s.dataset.timestamp = Date.now();
@@ -591,8 +590,6 @@
     iDisqus.prototype.getlist = function(){
         var _ = this;
         _.stat.loading = true;
-        _.dom.querySelector('#idisqus').style.display = 'block';
-        // _.dom.querySelector('#disqus_thread').style.visibility = 'hidden';
         getAjax(
             _.opts.api + '/getcomments.php?link=' + _.opts.url + (!!_.stat.next ? '&cursor=' + _.stat.next : ''),
             function(resp){
