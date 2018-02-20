@@ -78,6 +78,9 @@ if ( !empty($_POST['parent']) && $data -> code == 0 ){
     );
     $mail = curl_init();
     $protocol = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') || $_SERVER['SERVER_PORT'] == 443) ? 'https://' : 'http://';
+    if(strpos($_SERVER['SERVER_NAME'], 'now.sh')) {
+        $protocol = 'https://';
+    }
     $curl_opt = array(
         CURLOPT_URL => $protocol.$_SERVER['HTTP_HOST'].dirname($_SERVER['SCRIPT_NAME']).'/sendemail.php',
         CURLOPT_RETURNTRANSFER => true,
