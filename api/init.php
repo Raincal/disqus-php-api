@@ -217,7 +217,7 @@ function post_format( $post ){
 
 
     // 访客指定 Gravatar 头像
-    $avatar_url = GRAVATAR_CDN.md5($post -> author -> email).'?d='.$forum_data -> forum -> avatar;
+    $avatar_url = GRAVATAR_CDN.md5($post -> author -> email).'?d=retro';
     $post -> author -> avatar -> cache = $post -> author -> isAnonymous ? $avatar_url : $post -> author -> avatar -> cache;
 
     // 表情
@@ -261,7 +261,7 @@ function post_format( $post ){
     // 是否已删除
     if(!!$post -> isDeleted){
         $post -> message = '';
-        $post -> author -> avatar -> cache = GRAVATAR_CDN.'?d='.$forum_data -> forum -> avatar;
+        $post -> author -> avatar -> cache = GRAVATAR_CDN.'?d=retro';
         $post -> author -> username = '';
         $post -> author -> name = '';
         $post -> author -> url = '';

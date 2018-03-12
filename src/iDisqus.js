@@ -1,6 +1,6 @@
 /*!
  * v 0.2.1
- * 
+ *
  * https://github.com/fooleap/disqus-php-api
  *
  *
@@ -37,7 +37,7 @@
         xhr.send();
         return xhr;
     }
-    
+
     function postAjax(url, data, success, error) {
         var params = typeof data == 'string' ? data : Object.keys(data).map(
             function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]) }
@@ -47,16 +47,16 @@
         xhr.open('POST', url);
         xhr.onreadystatechange = function() {
             if (xhr.readyState == 4 && xhr.status == 200) {
-                success(xhr.responseText); 
+                success(xhr.responseText);
             }
         };
-        xhr.onerror = error; 
+        xhr.onerror = error;
         xhr.withCredentials = true;
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.send(params);
         return xhr;
     }
-    
+
     // matches & closest polyfill https://github.com/jonathantneal/closest
     (function (ElementProto) {
         if (typeof ElementProto.matches !== 'function') {
@@ -208,7 +208,7 @@
             _.opts.url = location.pathname + location.search;
         }
         _.opts.identifier = !!_.opts.identifier ? _.opts.identifier : _.opts.url;
-        _.opts.link = _.opts.site + _.opts.url; 
+        _.opts.link = _.opts.site + _.opts.url;
         _.opts.title = !!_.opts.title ? _.opts.title : d.title;
         _.opts.slug = !!_.opts.slug ? _.opts.slug.replace(/[^A-Za-z0-9_-]+/g,'') : '';
         _.opts.desc =  !!_.opts.desc ? _.opts.desc : (!!d.querySelector('[name="description"]') ? d.querySelector('[name="description"]').content : '');
@@ -284,7 +284,7 @@
             title:'胜利',
             unicode:'270c'
         }];
-        
+
         if(!!_.opts.emoji_preview){
             getAjax(_.opts.api +'/eac.min.php', function(resp){
                 _.eac = JSON.parse(resp);
@@ -406,7 +406,7 @@
             '    <div class="loading-container" data-tip="正在加载评论……"><svg class="loading-bg" width="72" height="72" viewBox="0 0 720 720" version="1.1" xmlns="http://www.w3.org/2000/svg"><path class="ring" fill="none" stroke="#9d9ea1" d="M 0 -260 A 260 260 0 1 1 -80 -260" transform="translate(400,400)" stroke-width="50" /><polygon transform="translate(305,20)" points="50,0 0,100 18,145 50,82 92,145 100,100" style="fill:#9d9ea1"/></svg></div>\n'+
             '    <div class="comment-header"><span class="comment-header-item" id="comment-count">评论</span><a target="_blank" class="comment-header-item" id="comment-link">Disqus 讨论区</a></div>\n'+
             '    <div class="comment-box">\n'+
-            '        <div class="comment-avatar avatar"><img class="comment-avatar-image" src="https://gravatar.cat.net/avatar/cb85efa6e1ba6fda8790b768d73f2863"></div>\n'+
+            '        <div class="comment-avatar avatar"><img class="comment-avatar-image" src="https://gravatar.cat.net/avatar/cb85efa6e1ba6fda8790b768d73f2863" data-avatar="https://gravatar.cat.net/avatar/cb85efa6e1ba6fda8790b768d73f2863"></div>\n'+
             '        <div class="comment-form">\n'+
             '            <div class="comment-form-wrapper">\n'+
             '                <textarea class="comment-form-textarea" placeholder="加入讨论……"></textarea>\n'+
@@ -491,10 +491,10 @@
             case 1:
                 _.disqus();
                 break;
-            case 2: 
+            case 2:
                 _.getlist();
                 break;
-            case 3: 
+            case 3:
                 _.getlist();
                 _.disqus();
                 break;
@@ -537,7 +537,7 @@
                 _.dom.querySelector('#idisqus').style.display = 'none';
                 _.stat.disqusLoaded = true;
                 _tip = '连接成功，加载 Disqus 评论框……'
-            } 
+            }
             s.onerror = function(){
                 if( _.opts.mode == 1){
                     _tip = '连接失败，加载简易评论框……';
@@ -618,7 +618,7 @@
                 commentArr[i] = counts[i].dataset.disqusUrl.replace(_.opts.site, '');
             }
             getAjax(
-                _.opts.api + '/count.php?links=' + commentArr.join(','), 
+                _.opts.api + '/count.php?links=' + commentArr.join(','),
                 function(resp) {
                     var data  = JSON.parse(resp);
                     var posts = data.response;
@@ -643,7 +643,7 @@
         var _ = this;
         if(!!_.opts.popular){
             getAjax(
-                _.opts.api + '/popular.php', 
+                _.opts.api + '/popular.php',
                 function(resp) {
                     var data = JSON.parse(resp);
                     if(data.code == 0){
@@ -746,7 +746,7 @@
         if(!!post.username && _.stat.users.map(function(user) { return user.username; }).indexOf(post.username) == -1){
             _.stat.users.push(user);
         }
-        
+
         var parentPost = !!post.parent ? {
             name: '<a class="comment-item-pname" href="#'+parentPostDom.id+'"><svg class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200"><path d="M1.664 902.144s97.92-557.888 596.352-557.888V129.728L1024 515.84l-425.984 360.448V628.8c-270.464 0-455.232 23.872-596.352 273.28"></path></svg>' + parentPostDom.dataset.name + '</a>',
             dom: parentPostDom.querySelector('.comment-item-children'),
@@ -874,7 +874,7 @@
         alertmsg.innerHTML = '';
     }
 
-    // 提醒用户 @ mention 
+    // 提醒用户 @ mention
     iDisqus.prototype.mention = function(e){
         var _ = this;
         var textarea = e.currentTarget;
@@ -1019,7 +1019,7 @@
         var textarea = form.querySelector('.comment-form-textarea');
         var selStart = textarea.selectionStart;
         var shortCode = selStart == 0 ? item.dataset.code + ' ' : ' ' + item.dataset.code + ' '
-        textarea.value = textarea.value.slice(0, selStart) + shortCode + textarea.value.slice(selStart) 
+        textarea.value = textarea.value.slice(0, selStart) + shortCode + textarea.value.slice(selStart)
         textarea.focus();
         textarea.setSelectionRange(selStart + shortCode.length, selStart + shortCode.length);
     }
@@ -1533,7 +1533,7 @@
                 }
                 alert(data.response);
                 return;
-            } else { 
+            } else {
                 alert(data.response);
                 return;
             }
