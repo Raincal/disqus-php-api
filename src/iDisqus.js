@@ -1,6 +1,6 @@
 /*!
- * v 0.2.1
- *
+ * v 0.2.3
+ * 
  * https://github.com/fooleap/disqus-php-api
  *
  *
@@ -37,7 +37,7 @@
         xhr.send();
         return xhr;
     }
-
+    
     function postAjax(url, data, success, error) {
         var params = typeof data == 'string' ? data : Object.keys(data).map(
             function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]) }
@@ -47,16 +47,16 @@
         xhr.open('POST', url);
         xhr.onreadystatechange = function() {
             if (xhr.readyState == 4 && xhr.status == 200) {
-                success(xhr.responseText);
+                success(xhr.responseText); 
             }
         };
-        xhr.onerror = error;
+        xhr.onerror = error; 
         xhr.withCredentials = true;
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.send(params);
         return xhr;
     }
-
+    
     // matches & closest polyfill https://github.com/jonathantneal/closest
     (function (ElementProto) {
         if (typeof ElementProto.matches !== 'function') {
@@ -208,14 +208,13 @@
             _.opts.url = location.pathname + location.search;
         }
         _.opts.identifier = !!_.opts.identifier ? _.opts.identifier : _.opts.url;
-        _.opts.link = _.opts.site + _.opts.url;
+        _.opts.link = _.opts.site + _.opts.url; 
         _.opts.title = !!_.opts.title ? _.opts.title : d.title;
         _.opts.slug = !!_.opts.slug ? _.opts.slug.replace(/[^A-Za-z0-9_-]+/g,'') : '';
         _.opts.desc =  !!_.opts.desc ? _.opts.desc : (!!d.querySelector('[name="description"]') ? d.querySelector('[name="description"]').content : '');
         _.opts.mode = !!_.opts.mode ? _.opts.mode : 1;
         _.opts.timeout = !!_.opts.timeout ? _.opts.timeout : 3000;
         _.opts.toggle = !!_.opts.toggle ? d.getElementById(_.opts.toggle) : null;
-        _.opts.badge = !!_.opts.badge ? _.opts.badge : '管理员';
 
         // emoji 表情
         _.opts.emoji_path = !!_.opts.emoji_path ? _.opts.emoji_path : 'https://assets-cdn.github.com/images/icons/emoji/unicode/';
@@ -284,7 +283,7 @@
             title:'胜利',
             unicode:'270c'
         }];
-
+        
         if(!!_.opts.emoji_preview){
             getAjax(_.opts.api +'/eac.min.php', function(resp){
                 _.eac = JSON.parse(resp);
@@ -491,10 +490,10 @@
             case 1:
                 _.disqus();
                 break;
-            case 2:
+            case 2: 
                 _.getlist();
                 break;
-            case 3:
+            case 3: 
                 _.getlist();
                 _.disqus();
                 break;
@@ -519,9 +518,9 @@
     // 加载 Disqus 评论
     iDisqus.prototype.disqus = function(){
         if (typeof DISQUS === 'object') {
-          this.reset();
-          this.stat.disqusLoaded = true;
-        }
+            this.reset();
+            this.stat.disqusLoaded = true;
+          }
 
         var _ = this;
         var _tip = _.dom.querySelector('.loading-container').dataset.tip;
@@ -542,7 +541,7 @@
                 _.dom.querySelector('#idisqus').style.display = 'none';
                 _.stat.disqusLoaded = true;
                 _tip = '连接成功，加载 Disqus 评论框……'
-            }
+            } 
             s.onerror = function(){
                 if( _.opts.mode == 1){
                     _tip = '连接失败，加载简易评论框……';
@@ -623,13 +622,14 @@
                 commentArr[i] = counts[i].dataset.disqusUrl.replace(_.opts.site, '');
             }
             getAjax(
-                _.opts.api + '/count.php?links=' + commentArr.join(','),
+                _.opts.api + '/count.php?links=' + commentArr.join(','), 
                 function(resp) {
                     var data  = JSON.parse(resp);
                     var posts = data.response;
                     posts.forEach(function(item){
-                        var link = item.link.replace(_.opts.site, '');
-                        var itemLink = link.slice(0, 1) != '/' ? '/' + link : link;
+                        var link = document.createElement('a');
+                        link.href = item.link;
+                        var itemLink = link.href.replace(link.origin, '');
                         var el = d.querySelector('[data-disqus-url$="'+itemLink+'"]')
                         if(!!el ){
                             el.innerHTML = item.posts;
@@ -648,7 +648,7 @@
         var _ = this;
         if(!!_.opts.popular){
             getAjax(
-                _.opts.api + '/popular.php',
+                _.opts.api + '/popular.php', 
                 function(resp) {
                     var data = JSON.parse(resp);
                     if(data.code == 0){
@@ -751,7 +751,7 @@
         if(!!post.username && _.stat.users.map(function(user) { return user.username; }).indexOf(post.username) == -1){
             _.stat.users.push(user);
         }
-
+        
         var parentPost = !!post.parent ? {
             name: '<a class="comment-item-pname" href="#'+parentPostDom.id+'"><svg class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200"><path d="M1.664 902.144s97.92-557.888 596.352-557.888V129.728L1024 515.84l-425.984 360.448V628.8c-270.464 0-455.232 23.872-596.352 273.28"></path></svg>' + parentPostDom.dataset.name + '</a>',
             dom: parentPostDom.querySelector('.comment-item-children'),
@@ -763,9 +763,11 @@
         };
 
         var mediaHTML = '';
-        if( post.media.length > 0 ){
+        if( post.media.length == 1 ){
+            mediaHTML = '<div class="comment-item-images"><a class="comment-item-image" target="_blank" href="' + post.media[0] + '" style="background-image: url('+post.media[0]+');width: 167px;height: 167px"></a></div>';
+        } else if( post.media.length > 1 ){
             post.media.forEach(function(item){
-                mediaHTML += '<a class="comment-item-imagelink" target="_blank" href="' + item + '" ><img class="comment-item-image" src="' + item + '"></a>';
+                mediaHTML += '<a class="comment-item-image" target="_blank" href="' + item + '" style="background-image: url('+item+')"></a>';
             })
             mediaHTML = '<div class="comment-item-images">' + mediaHTML + '</div>';
         }
@@ -879,7 +881,7 @@
         alertmsg.innerHTML = '';
     }
 
-    // 提醒用户 @ mention
+    // 提醒用户 @ mention 
     iDisqus.prototype.mention = function(e){
         var _ = this;
         var textarea = e.currentTarget;
@@ -1024,7 +1026,7 @@
         var textarea = form.querySelector('.comment-form-textarea');
         var selStart = textarea.selectionStart;
         var shortCode = selStart == 0 ? item.dataset.code + ' ' : ' ' + item.dataset.code + ' '
-        textarea.value = textarea.value.slice(0, selStart) + shortCode + textarea.value.slice(selStart)
+        textarea.value = textarea.value.slice(0, selStart) + shortCode + textarea.value.slice(selStart) 
         textarea.focus();
         textarea.setSelectionRange(selStart + shortCode.length, selStart + shortCode.length);
     }
@@ -1538,7 +1540,7 @@
                 }
                 alert(data.response);
                 return;
-            } else {
+            } else { 
                 alert(data.response);
                 return;
             }
@@ -1572,16 +1574,16 @@
 
     // reset DISQUS on AJAX sites
     iDisqus.prototype.reset = function() {
-      if (typeof DISQUS === 'object') {
-        DISQUS.reset({
-          reload: true,
-          config: function () {
-            this.page.identifier = this.opts.identifier;
-            this.page.url = this.opts.link + "#!" + this.opts.identifier;
-          }
-        })
+        if (typeof DISQUS === 'object') {
+          DISQUS.reset({
+            reload: true,
+            config: function () {
+              this.page.identifier = this.opts.identifier;
+              this.page.url = this.opts.link + "#!" + this.opts.identifier;
+            }
+          })
+        }
       }
-    }
 
     /* CommonJS */
     if (typeof require === 'function' && typeof module === 'object' && module && typeof exports === 'object' && exports)

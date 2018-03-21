@@ -3,7 +3,7 @@
  * 获取权限，简单封装常用函数
  *
  * @author   fooleap <fooleap@gmail.com>
- * @version  2018-03-10 23:55:03
+ * @version  2018-03-15 12:47:00
  * @link     https://github.com/fooleap/disqus-php-api
  *
  */
@@ -248,7 +248,7 @@ function post_format( $post ){
 
     $imgArr = array();
     foreach ( $post -> media as $key => $image ){
-        if( $image -> url !== 'https://disqus.com' ){
+        if( $image -> url !== 'https://disqus.com' && $image -> url !== 'disqus.com' ){
             if( strpos($image -> url, 'giphy.gif') !== false ){
                 $imgArr[$key] = '//a.disquscdn.com/get?url='.urlencode($image -> url).'&key=Hx_Z1IMzKElPuRPVmpnfsQ';
             } else {
