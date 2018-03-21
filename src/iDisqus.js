@@ -518,6 +518,11 @@
 
     // 加载 Disqus 评论
     iDisqus.prototype.disqus = function(){
+        if (typeof DISQUS === 'object') {
+          this.reset();
+          this.stat.disqusLoaded = true;
+        }
+
         var _ = this;
         var _tip = _.dom.querySelector('.loading-container').dataset.tip;
         if(_.opts.site != location.origin){
@@ -1563,6 +1568,19 @@
         delete _.handle;
         delete _.opts;
         delete _.stat;
+    }
+
+    // reset DISQUS on AJAX sites
+    iDisqus.prototype.reset = function() {
+      if (typeof DISQUS === 'object') {
+        DISQUS.reset({
+          reload: true,
+          config: function () {
+            this.page.identifier = this.opts.identifier;
+            this.page.url = this.opts.link + "#!" + this.opts.identifier;
+          }
+        })
+      }
     }
 
     /* CommonJS */
