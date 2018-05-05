@@ -4,16 +4,6 @@ Disqus PHP API
 
 > Disqus 被墙，故做几个简单的接口，用于墙内环境访问 Disqus。
 
-## 注意
-
-本次更新主要是授权登录，实现使用 Disqus 帐号登录以发表评论，便于评论者以后对自己评论的管理。
-
-授权登录必须在 [Disqus API](https://disqus.com/api/applications/) 申请注册一个 App，取得相关的公钥（API Key）和私钥（API Secret），并填写于后端的配置文件 `config.php` 中。
-
-App 设置方面，回调链接请填写 `login.php` 文件的绝对地址，主要的设置如下图，可根据自己情况填写。
-
-![Disqus API 相关设置](https://uploads.disquscdn.com/images/013aa0590d3d091408c06d3d42b9e2fa15d6731f6c1e2cff5c8495fe23b21e80.png)
-
 ## 实现功能
 
 * 评论列表
@@ -26,12 +16,25 @@ App 设置方面，回调链接请填写 `login.php` 文件的绝对地址，主
 
 ## Disqus 设置
 
-* 使用 API 实现匿名评论功能，需在 Disqus 后台[网站设置](https://disqus.com/admin/settings/community/)，开启访客评论功能（Guest Commenting 项中勾选 Allow guests to comment）。
+使用 API 实现匿名评论功能，需在 Disqus 后台[网站设置](https://disqus.com/admin/settings/community/)，设置相关选项。
+
+* 开启匿名评论，Guest Commenting 项中勾选 Allow guests to comment。
+* 若需评论免审，Pre-moderation 项选中 None。
+
 
 ## 后端
 
+* 需要部署在境外服务器。
 * 依赖于 PHP，采用 PHP cURL 请求 Disqus API，以获取评论数据，发送访客评论等操作。
-* 配置文件为 `config.php`，有简单说明。 
+* 配置文件为 `config.php`，有简单说明。
+
+### 重要
+
+必须在 [Disqus API](https://disqus.com/api/applications/) 申请注册一个 App，取得相关的公钥（**API Key**）、私钥（**API Secret**）以及管理员**access_token**，并填写于后端的配置文件 `config.php` 中。
+
+App 设置方面，回调链接请填写 `login.php` 文件的绝对地址，主要的设置如下图，可根据自己情况填写。
+
+![Disqus API 相关设置](https://uploads.disquscdn.com/images/013aa0590d3d091408c06d3d42b9e2fa15d6731f6c1e2cff5c8495fe23b21e80.png)
 
 ## 前端
 
@@ -155,24 +158,24 @@ var disq = new iDisqus('comment', {
 * {Boolean}
 * 默认：`false`
 
-##### auto
+##### autoCreate
 
 * 是否自动创建 Thread，为了不创建垃圾 Thread，并不推荐设置为 `true`
 * {Boolean}
 * 默认：`false`
 
-##### emoji_path
+##### emojiPath
 
 * Emoji 表情 PNG 图片路径
 * {String}
 * 默认：`"https://assets-cdn.github.com/images/icons/emoji/unicode/"`
 
-##### emoji_list
+##### emojiList
 
 * 自定义评论框内的点选 Emoji 表情，具体可看 DEMO 页面
 * {Object}
 
-##### emoji_preview
+##### emojiPreview
 
 * 评论预览是否支持 Emoji 短代码
 * {Boolean}

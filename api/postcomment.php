@@ -10,7 +10,7 @@
  * @param url     访客网址，可为空
  *
  * @author   fooleap <fooleap@gmail.com>
- * @version  2018-03-10 14:02:38
+ * @version  2018-05-01 11:29:13
  * @link     https://github.com/fooleap/disqus-php-api
  *
  */
@@ -23,12 +23,11 @@ $author_url = $_POST['url'] == '' || $_POST['url'] == 'null' ? null : $_POST['ur
 
 // 父评是已登录用户
 if(!empty($_POST['parent'])){
-    $fields_data = (object) array(
-        'api_key' => DISQUS_PUBKEY,
+    $fields = (object) array(
         'post' => $_POST['parent']
     );
-    $curl_url = '/api/3.0/posts/details.json?'.http_build_query($fields_data);
-    $data = curl_get($curl_url);
+    $curl_url = '/api/3.0/posts/details.json?';
+    $data = curl_get($curl_url, $fields);
     $post = post_format($data->response);
     if($data->response->author->isAnonymous == false){
         $approved = null;
@@ -56,9 +55,12 @@ if( isset($access_token) ){
         'message' => $post_message,
         'author_name' => $author_name,
         'author_email' => $author_email,
-        'author_url' => $author_url,
-        'state' => $approved
+        'author_url' => $author_url
     );
+
+    if(!!$forum_data -> cookie){
+        $post_data -> state = $approved;
+    }
 }
 
 $data = curl_post($curl_url, $post_data);
@@ -76,14 +78,13 @@ if ( !empty($_POST['parent']) && $data -> code == 0 ){
         'id'=> $data -> response -> id,
         'link'=> $_POST['link'],
         'title'=> $_POST['title'],
-        'session'=> $session
     );
     $mail = curl_init();
     $curl_opt = array(
         CURLOPT_URL => getCurrentDir().'/sendemail.php',
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $mail_query,
+        CURLOPT_RETURNTRANSFER => 1,
+        CURLOPT_POST => 1,
+        CURLOPT_POSTFIELDS => fields_format($mail_query),
         CURLOPT_TIMEOUT => 1
     );
     curl_setopt_array($mail, $curl_opt);

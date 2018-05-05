@@ -3,7 +3,7 @@
  * 登录
  *
  * @author   fooleap <fooleap@gmail.com>
- * @version  2018-03-10 14:01:48
+ * @version  2018-05-04 23:26:56
  * @link     https://github.com/fooleap/disqus-php-api
  *
  */
@@ -16,21 +16,21 @@ $CODE = $_GET['code'];
 
 if( isset($access_token) ){
     print_r('已登录');
-    exit;
+    echo '<script>parent.close();</script>';
 }
 
 if( isset($CODE)){
 
     $authorize = 'authorization_code';
     $fields = array(
-        'grant_type'=>urlencode($authorize),
-        'client_id'=>urlencode(PUBLIC_KEY),
-        'client_secret'=>urlencode(SECRET_KEY),
-        'redirect_uri'=>urlencode($redirect),
-        'code'=>urlencode($CODE)
+        'grant_type'=>$authorize,
+        'client_id'=>PUBLIC_KEY,
+        'client_secret'=>SECRET_KEY,
+        'redirect_uri'=>$redirect,
+        'code'=>$CODE
     );
-    $user_id = getAccessToken($fields);
-    if( $user_id ){
+    $access_token = getAccessToken($fields);
+    if( $access_token ){
 ?>
 <!doctype html>
 <html>
@@ -79,13 +79,9 @@ if( isset($CODE)){
         <div class="success-container">
             <svg class="success-bg" width="72" height="72" viewBox="0 0 720 720" version="1.1" xmlns="http://www.w3.org/2000/svg"><path class="ring" fill="none" stroke="#9d9ea1" d="M 0 -260 A 260 260 0 1 1 -80 -260" transform="translate(400,400)" stroke-width="50" /><polygon transform="translate(305,20)" points="50,0 0,100 18,145 50,82 92,145 100,100" style="fill:#9d9ea1"/></svg>
         </div>
-    <script>
-        function receiveMessage(event){
-            event.source.postMessage(<?php echo getUserData() ?>, event.origin);
-            window.close()
-        }
-        window.addEventListener("message", receiveMessage, false);
-    </script>
+        <script>
+            parent.close();
+        </script>
     </body>
 </html>
 <?php }

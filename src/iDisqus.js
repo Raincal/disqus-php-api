@@ -1,6 +1,6 @@
 /*!
- * v 0.2.3
- *
+ * v 0.2.8
+ * 
  * https://github.com/fooleap/disqus-php-api
  *
  *
@@ -37,7 +37,7 @@
         xhr.send();
         return xhr;
     }
-
+    
     function postAjax(url, data, success, error) {
         var params = typeof data == 'string' ? data : Object.keys(data).map(
             function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]) }
@@ -47,16 +47,16 @@
         xhr.open('POST', url);
         xhr.onreadystatechange = function() {
             if (xhr.readyState == 4 && xhr.status == 200) {
-                success(xhr.responseText);
+                success(xhr.responseText); 
             }
         };
-        xhr.onerror = error;
+        xhr.onerror = error; 
         xhr.withCredentials = true;
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.send(params);
         return xhr;
     }
-
+    
     // matches & closest polyfill https://github.com/jonathantneal/closest
     (function (ElementProto) {
         if (typeof ElementProto.matches !== 'function') {
@@ -155,33 +155,33 @@
 
             var _ = this;
             var popup = window.open(_.opts.api+'/login.php', 'Disqus Oauth', 'width=470,height=508');
+            var timer;
             function isLogged(){
-                popup.postMessage('Already logged in?', _.opts.api);
+                if (!popup || !popup.closed) return;
+                clearInterval(timer);
+                _.user.autologin();
             }
-            var timer = setInterval(isLogged, 1000);
-            function receiveMessage(event){
-                if( event.data.code == 0 ){
-                    _.user.submit(event.data.response);
-                    clearInterval(timer);
-                }
-            }
-            window.addEventListener('message', receiveMessage, false);
+            timer = setInterval(isLogged, 100);
 
         },
 
         // 退出登录
         logout: function(){
             var _ = this;
-            l.setItem('logged_in', 'false');
-            postAjax( _.opts.api + '/logout.php', {}, function(resp){})
-            _.user.init();
+            postAjax( _.opts.api + '/logout.php', {}, function(resp){
+                l.setItem('logged_in', 'false');
+                l.removeItem('type');
+                l.removeItem('email');
+                l.removeItem('avatar');
+                l.removeItem('name');
+                l.removeItem('url');
+                _.user.init();
+            })
         },
 
         // 提交访客信息
         submit: function(user){
-            if( user.type == '0' ){
-                l.setItem('email', user.email);
-            }
+            l.setItem('email', user.email);
             l.setItem('type', user.type);
             l.setItem('name', user.name);
             l.setItem('url', user.url);
@@ -198,7 +198,7 @@
         _.opts = typeof(arguments[1]) == 'object' ? arguments[1] : arguments[0];
         _.dom =  d.getElementById(typeof(arguments[0]) == 'string' ? arguments[0] : 'comment');
         _.opts.api = _.opts.api.slice(-1) == '/' ? _.opts.api.slice(0,-1) : _.opts.api;
-        _.opts.site = !!_.opts.site ? _.opts.site : location.origin;
+        _.opts.site = _.opts.site || location.origin;
         if(!!_.opts.url){
             var optsUrl = _.opts.url.replace(_.opts.site, '');
             _.opts.url = optsUrl.slice(0, 1) != '/' ? '/' + optsUrl : optsUrl;
@@ -207,18 +207,19 @@
         } else {
             _.opts.url = location.pathname + location.search;
         }
-        _.opts.identifier = !!_.opts.identifier ? _.opts.identifier : _.opts.url;
-        _.opts.link = _.opts.site + _.opts.url;
-        _.opts.title = !!_.opts.title ? _.opts.title : d.title;
+        _.opts.identifier = _.opts.identifier || _.opts.url;
+        _.opts.link = _.opts.site + _.opts.url; 
+        _.opts.title = _.opts.title || d.title;
         _.opts.slug = !!_.opts.slug ? _.opts.slug.replace(/[^A-Za-z0-9_-]+/g,'') : '';
-        _.opts.desc =  !!_.opts.desc ? _.opts.desc : (!!d.querySelector('[name="description"]') ? d.querySelector('[name="description"]').content : '');
-        _.opts.mode = !!_.opts.mode ? _.opts.mode : 1;
-        _.opts.timeout = !!_.opts.timeout ? _.opts.timeout : 3000;
+        _.opts.desc =  _.opts.desc || (!!d.querySelector('[name="description"]') ? d.querySelector('[name="description"]').content : '');
+        _.opts.mode = _.opts.mode || 1;
+        _.opts.timeout = _.opts.timeout || 3000;
         _.opts.toggle = !!_.opts.toggle ? d.getElementById(_.opts.toggle) : null;
+        _.opts.autoCreate = !!_.opts.autoCreate || !!_.opts.auto;
 
         // emoji 表情
-        _.opts.emoji_path = !!_.opts.emoji_path ? _.opts.emoji_path : 'https://assets-cdn.github.com/images/icons/emoji/unicode/';
-        _.emoji_list =!!_.opts.emoji_list ? _.opts.emoji_list : [{
+        _.opts.emojiPath = _.opts.emojiPath || _.opts.emoji_path || 'https://assets-cdn.github.com/images/icons/emoji/unicode/';
+        _.emojiList = _.opts.emojiList || _.opts.emoji_list || [{
             code:'smile',
             title:'笑脸',
             unicode:'1f604'
@@ -283,8 +284,8 @@
             title:'胜利',
             unicode:'270c'
         }];
-
-        if(!!_.opts.emoji_preview){
+        
+        if(!!_.opts.emoji_preview || !!_.opts.emojiPreview ){
             getAjax(_.opts.api +'/eac.min.php', function(resp){
                 _.eac = JSON.parse(resp);
             }, function(){
@@ -317,8 +318,6 @@
             this.callbacks.onReady.push(function() {
                 _.stat.current = 'disqus';
                 _.stat.disqusLoaded = true;
-                _.dom.querySelector('#idisqus').style.display = 'none';
-                _.dom.querySelector('#disqus_thread').style.display = 'block';
                 if( _.opts.mode == 3 && !!_.opts.toggle) {
                     _.opts.toggle.disabled = '';
                     _.opts.toggle.checked = true;
@@ -398,14 +397,14 @@
         }
         // 表情
         var emojiList = '';
-        _.emoji_list.forEach(function(item){
-            emojiList += '<li class="emojione-item" title="'+ item.title+'" data-code=":'+item.code+':"><img class="emojione-item-image" src="'+_.opts.emoji_path + item.unicode+'.png" /></li>';
+        _.emojiList.forEach(function(item){
+            emojiList += '<li class="emojione-item" title="'+ item.title+'" data-code=":'+item.code+':"><img class="emojione-item-image" src="'+_.opts.emojiPath + item.unicode+'.png" /></li>';
         })
         _.dom.innerHTML = '<div class="comment loading" id="idisqus">\n'+
             '    <div class="loading-container" data-tip="正在加载评论……"><svg class="loading-bg" width="72" height="72" viewBox="0 0 720 720" version="1.1" xmlns="http://www.w3.org/2000/svg"><path class="ring" fill="none" stroke="#9d9ea1" d="M 0 -260 A 260 260 0 1 1 -80 -260" transform="translate(400,400)" stroke-width="50" /><polygon transform="translate(305,20)" points="50,0 0,100 18,145 50,82 92,145 100,100" style="fill:#9d9ea1"/></svg></div>\n'+
             '    <div class="comment-header"><span class="comment-header-item" id="comment-count">评论</span><a target="_blank" class="comment-header-item" id="comment-link">Disqus 讨论区</a></div>\n'+
             '    <div class="comment-box">\n'+
-            '        <div class="comment-avatar avatar"><img class="comment-avatar-image" src="https://gravatar.cat.net/avatar/cb85efa6e1ba6fda8790b768d73f2863" data-avatar="https://gravatar.cat.net/avatar/cb85efa6e1ba6fda8790b768d73f2863"></div>\n'+
+            '        <div class="comment-avatar avatar"><img class="comment-avatar-image" src="//a.disquscdn.com/images/noavatar92.png" data-avatar="//a.disquscdn.com/images/noavatar92.png"></div>\n'+
             '        <div class="comment-form">\n'+
             '            <div class="comment-form-wrapper">\n'+
             '                <textarea class="comment-form-textarea" placeholder="加入讨论……"></textarea>\n'+
@@ -490,10 +489,10 @@
             case 1:
                 _.disqus();
                 break;
-            case 2:
+            case 2: 
                 _.getlist();
                 break;
-            case 3:
+            case 3: 
                 _.getlist();
                 _.disqus();
                 break;
@@ -520,7 +519,7 @@
         if (typeof DISQUS === 'object') {
             this.reset();
             this.stat.disqusLoaded = true;
-        }
+          }
 
         var _ = this;
         var _tip = _.dom.querySelector('.loading-container').dataset.tip;
@@ -541,7 +540,7 @@
                 _.dom.querySelector('#idisqus').style.display = 'none';
                 _.stat.disqusLoaded = true;
                 _tip = '连接成功，加载 Disqus 评论框……'
-            }
+            } 
             s.onerror = function(){
                 if( _.opts.mode == 1){
                     _tip = '连接失败，加载简易评论框……';
@@ -622,7 +621,7 @@
                 commentArr[i] = counts[i].dataset.disqusUrl.replace(_.opts.site, '');
             }
             getAjax(
-                _.opts.api + '/count.php?links=' + commentArr.join(','),
+                _.opts.api + '/count.php?links=' + commentArr.join(','), 
                 function(resp) {
                     var data  = JSON.parse(resp);
                     var posts = data.response;
@@ -648,7 +647,7 @@
         var _ = this;
         if(!!_.opts.popular){
             getAjax(
-                _.opts.api + '/popular.php',
+                _.opts.api + '/popular.php', 
                 function(resp) {
                     var data = JSON.parse(resp);
                     if(data.code == 0){
@@ -670,9 +669,8 @@
     iDisqus.prototype.getlist = function(){
         var _ = this;
         _.stat.loading = true;
-        if(typeof DISQUS === 'object') {
-          _.reset();
-          return;
+        if (typeof DISQUS === 'object') {
+            return;
         }
         getAjax(
             _.opts.api + '/getcomments.php?link=' + _.opts.url + (!!_.stat.next ? '&cursor=' + _.stat.next : ''),
@@ -724,7 +722,7 @@
 
                     _.timeAgo();
 
-                    if (/^#disqus|^#comment/.test(location.hash) && !data.cursor.hasPrev && !_.stat.disqusLoaded ) {
+                    if (/^#disqus|^#comment-/.test(location.hash) && !data.cursor.hasPrev && !_.stat.disqusLoaded ) {
                         var el = _.dom.querySelector('#idisqus ' + location.hash)
                         window.scrollBy(0, el.getBoundingClientRect().top);
                     }
@@ -755,7 +753,7 @@
         if(!!post.username && _.stat.users.map(function(user) { return user.username; }).indexOf(post.username) == -1){
             _.stat.users.push(user);
         }
-
+        
         var parentPost = !!post.parent ? {
             name: '<a class="comment-item-pname" href="#'+parentPostDom.id+'"><svg class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200"><path d="M1.664 902.144s97.92-557.888 596.352-557.888V129.728L1024 515.84l-425.984 360.448V628.8c-270.464 0-455.232 23.872-596.352 273.28"></path></svg>' + parentPostDom.dataset.name + '</a>',
             dom: parentPostDom.querySelector('.comment-item-children'),
@@ -861,6 +859,7 @@
     // 读取更多
     iDisqus.prototype.loadMore = function(e){
         var _ = this;
+        _.stat.offsetTop = d.documentElement.scrollTop || d.body.scrollTop;
         if( !_.stat.loading ){
             e.currentTarget.classList.add('loading');
             _.getlist();
@@ -885,7 +884,7 @@
         alertmsg.innerHTML = '';
     }
 
-    // 提醒用户 @ mention
+    // 提醒用户 @ mention 
     iDisqus.prototype.mention = function(e){
         var _ = this;
         var textarea = e.currentTarget;
@@ -1030,7 +1029,7 @@
         var textarea = form.querySelector('.comment-form-textarea');
         var selStart = textarea.selectionStart;
         var shortCode = selStart == 0 ? item.dataset.code + ' ' : ' ' + item.dataset.code + ' '
-        textarea.value = textarea.value.slice(0, selStart) + shortCode + textarea.value.slice(selStart)
+        textarea.value = textarea.value.slice(0, selStart) + shortCode + textarea.value.slice(selStart) 
         textarea.focus();
         textarea.setSelectionRange(selStart + shortCode.length, selStart + shortCode.length);
     }
@@ -1136,6 +1135,7 @@
         var $item;
 
         var xhrUpload = new XMLHttpRequest();
+        xhrUpload.withCredentials = true;
         xhrUpload.onreadystatechange = function(){
             if(xhrUpload.readyState == 4 && xhrUpload.status == 200){
                 var data = JSON.parse(xhrUpload.responseText);
@@ -1307,12 +1307,12 @@
             if( !!_.opts.emoji_preview ){
                 preMessage = preMessage.replace(/:([-+\w]+):/g, function (match){
                     var emojiShort = match.replace(/:/g,'');
-                    var emojiImage = !!_.eac[emojiShort] ? '<img class="emojione" width="24" height="24" alt="'+emojiShort+'" title=":'+emojiShort+':" src="'+_.opts.emoji_path+_.eac[emojiShort]+'.png">' : match;
+                    var emojiImage = !!_.eac[emojiShort] ? '<img class="emojione" width="24" height="24" alt="'+emojiShort+'" title=":'+emojiShort+':" src="'+_.opts.emojiPath +_.eac[emojiShort]+'.png">' : match;
                     return emojiImage;
                 });
             } else {
-                _.emoji_list.forEach(function(item){
-                    preMessage = preMessage.replace(':'+item.code+':', '<img class="emojione" width="24" height="24" src="' + _.opts.emoji_path + item.unicode + '.png" />');
+                _.emojiList.forEach(function(item){
+                    preMessage = preMessage.replace(':'+item.code+':', '<img class="emojione" width="24" height="24" src="' + _.opts.emojiPath + item.unicode + '.png" />');
                 });
             }
 
@@ -1418,7 +1418,14 @@
                     if( data.response.indexOf('author') > -1){
                         _.handle.logout();
                     }
+                } else {
+                    alertmsg.innerHTML = '提交失败，请稍后重试，错误代码：' + data.code;
+                    alertClear();
+
+                    _.dom.querySelector('.comment-item[data-id="preview"]').outerHTML = '';
+                    _.reEdit(item);
                 }
+
             }, function(){
                 alertmsg.innerHTML = '提交出错，请稍后重试。';
                 alertClear();
@@ -1485,7 +1492,7 @@
     // 创建 Thread 表单
     iDisqus.prototype.create = function(){
         var _ = this;
-        if(!!_.opts.auto){
+        if(_.opts.autoCreate){
             _.dom.querySelector('.loading-container').dataset.tip = '正在创建 Thread……';
             var postData = {
                 url: _.opts.link,
@@ -1544,7 +1551,7 @@
                 }
                 alert(data.response);
                 return;
-            } else {
+            } else { 
                 alert(data.response);
                 return;
             }
@@ -1569,7 +1576,7 @@
         _.dom.innerHTML = '';
         delete _.box;
         delete _.dom;
-        delete _.emoji_list;
+        delete _.emojiList;
         delete _.user;
         delete _.handle;
         delete _.opts;
@@ -1578,14 +1585,14 @@
 
     // reset DISQUS on AJAX sites
     iDisqus.prototype.reset = function() {
-      var _ = this;
-      DISQUS.reset({
-        reload: true,
-        config: function () {
-          this.page.identifier = location.pathname;
-          this.page.url = _.opts.site + location.pathname;
-        }
-      })
+        var _ = this;
+        DISQUS.reset({
+            reload: true,
+            config: function () {
+                this.page.identifier = location.pathname;
+                this.page.url = _.opts.site + location.pathname;
+            }
+        })
     }
 
     /* CommonJS */
