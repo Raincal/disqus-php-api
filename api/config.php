@@ -3,7 +3,7 @@
  * 配置文件
  *
  * @author   fooleap <fooleap@gmail.com>
- * @version  2018-04-29 12:48:07
+ * @version  2018-05-10 23:43:11
  * @link     https://github.com/fooleap/disqus-php-api
  *
  */
@@ -15,7 +15,6 @@ namespace Emojione;
  * DISQUS_PUBKEY    Disqus 公钥，无需修改
  * PUBLIC_KEY       Disqus APP 公钥，在 https://disqus.com/api/applications/ 申请注册后获得
  * SECRET_KEY       Disqus APP 私钥，在 https://disqus.com/api/applications/ 申请注册后获得
- * ACCESS_TOKEN     Disqus 管理员 access_token，在 https://disqus.com/api/applications/ 申请注册后获得
  * DISQUS_USERNAME  Disqus 用户名
  * DISQUS_EMAIL     Disqus 注册邮箱，重要
  * DISQUS_PASSWORD  Disqus 密码，重要
@@ -30,7 +29,6 @@ namespace Emojione;
 define('DISQUS_PUBKEY', 'E8Uh5l5fHZ6gD8U3KycjAIAk46f68Zw7C6eW8WSjZvCLXebZ7p0r1yrYDrLilk2F');
 define('PUBLIC_KEY', getenv('PUBLIC_KEY'));
 define('SECRET_KEY', getenv('SECRET_KEY'));
-define('ACCESS_TOKEN', getenv('ACCESS_TOKEN'));
 define('DISQUS_USERNAME', getenv('DISQUS_USERNAME'));
 define('DISQUS_EMAIL', getenv('DISQUS_EMAIL'));
 define('DISQUS_PASSWORD', getenv('DISQUS_PASSWORD'));
@@ -52,18 +50,20 @@ define('EMOJI_PATH', getenv('EMOJI_PATH'));
 /*
  * PHP Mailer 设置
  *
- * SITE_NAME      网站名
  * SMTP_SECURE    安全协议
  * SMTP_HOST      邮箱服务器
  * SMTP_PORT      端口号
  * SMTP_USERNAME  SMTP 登录的账号，即邮箱号
  * SMTP_PASSWORD  SMTP 登录的账号，即邮箱密码
+ * SMTP_FROM      发件人的邮箱地址，可以留空
+ * SMTP_FROMNAME  发件人的名称，可以留空
  *
  */
 
-define('SITE_NAME', getenv('SITE_NAME'));
 define('SMTP_SECURE', getenv('SMTP_SECURE'));
 define('SMTP_HOST', getenv('SMTP_HOST'));
 define('SMTP_PORT', getenv('SMTP_PORT'));
 define('SMTP_USERNAME', getenv('SMTP_USERNAME'));
 define('SMTP_PASSWORD', getenv('SMTP_PASSWORD'));
+define('SMTP_FROM', getenv('SMTP_FROM'));
+define('SMTP_FROMNAME', getenv('SMTP_FROMNAME'));

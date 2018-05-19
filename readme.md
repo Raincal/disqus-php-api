@@ -21,16 +21,15 @@ Disqus PHP API
 * 开启匿名评论，Guest Commenting 项中勾选 Allow guests to comment。
 * 若需评论免审，Pre-moderation 项选中 None。
 
-
 ## 后端
 
 * 需要部署在境外服务器。
-* 依赖于 PHP，采用 PHP cURL 请求 Disqus API，以获取评论数据，发送访客评论等操作。
+* 依赖于 PHP 5.6+，采用 PHP cURL 请求 Disqus API，以获取评论数据，发送访客评论等操作。
 * 配置文件为 `config.php`，有简单说明。
 
 ### 重要
 
-必须在 [Disqus API](https://disqus.com/api/applications/) 申请注册一个 App，取得相关的公钥（**API Key**）、私钥（**API Secret**）以及管理员**access_token**，并填写于后端的配置文件 `config.php` 中。
+必须在 [Disqus API](https://disqus.com/api/applications/) 申请注册一个 App，取得相关的公钥（**API Key**）、私钥（**API Secret**），并填写于后端的配置文件 `config.php` 中。
 
 App 设置方面，回调链接请填写 `login.php` 文件的绝对地址，主要的设置如下图，可根据自己情况填写。
 
