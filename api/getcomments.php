@@ -7,14 +7,13 @@
  * @param cursor 当前评论位置
  *
  * @author   fooleap <fooleap@gmail.com>
- * @version  2018-04-26 17:16:59
+ * @version  2018-06-13 22:10:09
  * @link     https://github.com/fooleap/disqus-php-api
  *
  */
-namespace Emojione;
 require_once('init.php');
 
-$thread = 'link:'.$website.$_GET['link'];
+$thread = 'ident:'.$_GET['ident'];
 
 $fields = (object) array(
     'forum' => DISQUS_SHORTNAME,
@@ -26,6 +25,14 @@ $fields = (object) array(
 
 $curl_url = '/api/3.0/threads/listPostsThreaded?';
 $data = curl_get($curl_url, $fields);
+
+if( $data -> code == 2 ){
+
+    $thread = 'link:'.$website.$_GET['link'];
+    $fields -> thread = $thread;
+    $data = curl_get($curl_url, $fields);
+
+}
 
 $fields = (object) array(
     'forum' => DISQUS_SHORTNAME,
@@ -42,12 +49,13 @@ if (is_array($data -> response) || is_object($data -> response)){
     }
 }
 
+$data -> cursor -> total = $detail -> response -> posts;
+
 $output = $data -> code == 0 ? (object) array(
-    'code' => $detail -> code,
+    'code' => 0,
     'cursor' => $data -> cursor,
-    'forum' => $forum_data -> forum,
+    'forum' => $cache -> get('forum'),
     'link' => 'https://disqus.com/home/discussion/'.DISQUS_SHORTNAME.'/'.$detail -> response -> slug.'/?l=zh',
-    'posts' => $detail -> response -> posts,
     'response' => $posts,
     'thread' => $detail -> response -> id
 ) : $data;

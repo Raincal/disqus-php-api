@@ -9,10 +9,14 @@ Disqus PHP API
 * 评论列表
 * 评论发表
 * 图片上传
-* Gravatar 头像
 * Emoji 表情
+* Gravatar 头像
 * 邮件通知
 * ……
+
+注：由于 GDPR，Disqus 目前屏蔽了 Email 及 IP 的获取，因此 Gravatar 头像及匿名评论的邮件通知暂无法完美实现。
+
+目前在后端配置添加 Gravatar d 参数设置项，暂存一个月内匿名评论者邮箱号，以发回复邮件通知。
 
 ## Disqus 设置
 

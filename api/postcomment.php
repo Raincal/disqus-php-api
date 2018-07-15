@@ -10,39 +10,42 @@
  * @param url     访客网址，可为空
  *
  * @author   fooleap <fooleap@gmail.com>
- * @version  2018-05-10 23:41:32
+ * @version  2018-06-13 21:52:53
  * @link     https://github.com/fooleap/disqus-php-api
  *
  */
-namespace Emojione;
 require_once('init.php');
 
 $author_name = $_POST['name'];
 $author_email = $_POST['email'];
 $author_url = $_POST['url'] == '' || $_POST['url'] == 'null' ? null : $_POST['url'];
+$thread = $_POST['thread'];
+$parent = $_POST['parent'];
 
-// 父评是已登录用户
-if(!empty($_POST['parent'])){
+// 存在父评，即回复
+if(!empty($parent)){
+
     $fields = (object) array(
-        'post' => $_POST['parent']
+        'post' => $parent
     );
     $curl_url = '/api/3.0/posts/details.json?';
     $data = curl_get($curl_url, $fields);
-    $post = post_format($data->response);
-    if($data->response->author->isAnonymous == false){
+    $isAnonParent = $data->response->author->isAnonymous;
+    if( $isAnonParent == false ){
+        // 防止重复发邮件
         $approved = null;
     }
 }
 
 $curl_url = '/api/3.0/posts/create.json';
-$post_message = html_entity_decode($client->shortnameToUnicode($_POST['message']));
+$post_message = $emoji->toUnicode($_POST['message']);
 
 // 已登录
 if( isset($access_token) ){
 
     $post_data = (object) array(
-        'thread' => $_POST['thread'],
-        'parent' => $_POST['parent'],
+        'thread' => $thread,
+        'parent' => $parent,
         'message' => $post_message,
         'ip_address' => $_SERVER['REMOTE_ADDR']
     );
@@ -50,51 +53,81 @@ if( isset($access_token) ){
 } else {
 
     $post_data = (object) array(
-        'thread' => $_POST['thread'],
-        'parent' => $_POST['parent'],
+        'thread' => $thread,
+        'parent' => $parent,
         'message' => $post_message,
         'author_name' => $author_name,
         'author_email' => $author_email,
         'author_url' => $author_url
     );
 
-    if(!!$forum_data -> cookie){
+    if(!!$cache -> get('cookie')){
         $post_data -> state = $approved;
     }
 }
 
 $data = curl_post($curl_url, $post_data);
 
-$output = $data -> code == 0 ? array(
-    'code' => $data -> code,
-    'thread' => $_POST['thread'],
-    'response' => post_format($data -> response)
-) : $data;
+if( $data -> code == 0 ){
 
-if ( !empty($_POST['parent']) && $data -> code == 0 ){
-
-    $fields = (object) array(
-        'parent'=> $_POST['parent'],
-        'id'=> $data -> response -> id
+    $output = array(
+        'code' => $data -> code,
+        'thread' => $thread,
+        'response' => post_format($data -> response)
     );
 
-    $fields_string = fields_format($fields);
+    $id = $data -> response -> id;
+    $createdAt = $data -> response ->createdAt;
+    $posts = $cache -> get('posts');
+    $parentPost = $posts -> $parent;
 
-    $ch = curl_init();
-    $options = array(
-        CURLOPT_URL => getCurrentDir().'/sendemail.php',
-        CURLOPT_RETURNTRANSFER => 1,
-        CURLOPT_POST => count($fields),
-        CURLOPT_POSTFIELDS => $fields_string,
-        CURLOPT_TIMEOUT => 1
-    );
-    curl_setopt_array($ch, $options);
-    curl_exec($ch);
-    $errno = curl_errno($ch);
-    if ($errno == 60 || $errno == 77) {
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
+    // 父评邮箱号存在
+    if( isset($parentPost) ){
+
+        $fields = (object) array(
+            'parent' => $parent,
+            'parentEmail' => $parentPost -> email,
+            'id' => $id
+        );
+
+        $fields_string = fields_format($fields);
+
+        $ch = curl_init();
+        $options = array(
+            CURLOPT_URL => getCurrentDir().'/sendemail.php',
+            CURLOPT_RETURNTRANSFER => 1,
+            CURLOPT_POST => count($fields),
+            CURLOPT_POSTFIELDS => $fields_string,
+            CURLOPT_TIMEOUT => 1
+        );
+        curl_setopt_array($ch, $options);
         curl_exec($ch);
+        $errno = curl_errno($ch);
+        if ($errno == 60 || $errno == 77) {
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
+            curl_exec($ch);
+        }
+        curl_close($ch);
     }
-    curl_close($ch);
+
+    // 匿名用户暂存邮箱号
+    if( !isset($access_token) ){
+        foreach ( $posts as $key => $post ){
+            if(strtotime('-1 month') > strtotime($post -> createdAt)){
+                unset($posts -> $key);
+            }
+        }
+        $posts -> $id = (object) array(
+            'email' => $author_email,
+            'createdAt' => $createdAt
+        );
+        $cache -> update($posts, 'posts');
+    }
+
+} else {
+
+    $output = $data;
+
 }
+
 print_r(json_encode($output));
