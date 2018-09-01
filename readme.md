@@ -14,9 +14,7 @@ Disqus PHP API
 * 邮件通知
 * ……
 
-注：由于 GDPR，Disqus 目前屏蔽了 Email 及 IP 的获取，因此 Gravatar 头像及匿名评论的邮件通知暂无法完美实现。
-
-目前在后端配置添加 Gravatar d 参数设置项，暂存一个月内匿名评论者邮箱号，以发回复邮件通知。
+注：由于 GDPR，Disqus 目前屏蔽了 Email 及 IP 的获取，因此 Gravatar 头像及匿名评论的邮件通知暂无法完美实现。目前暂存匿名评论者邮箱号，以发回复邮件通知显示 Gravatar 头像。
 
 ## Disqus 设置
 
@@ -184,6 +182,13 @@ var disq = new iDisqus('comment', {
 * {Boolean}
 * 默认：`false`
 
+##### relatedType
+
+* 相关文章类型，可选相关文章或热门文章
+* {String}
+* 默认：`Related`，可选`Popular`
+
+
 ### 实例方法
 
 #### init
@@ -198,7 +203,3 @@ var disq = new iDisqus('comment', {
 
 * 加载评论数
 * 用法：创建容器（可多个），加属性 data-disqus-url 值放页面链接，创建实例后执行则可显示评论数，具体可查看DEMO 页面
-
-#### popular
-
-* 最近热门列表

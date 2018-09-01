@@ -419,6 +419,7 @@
         width: 100%;
         display: block;
         border: none;
+        border-radius: 4px;
         overflow: auto;
         color: rgb(42, 46, 46);
         cursor: text;
@@ -628,6 +629,7 @@
     }
     .comment-item-body {
         display: flex;
+        margin-bottom: 5px;
     }
     .comment-item-header,
     .comment-item-footer {
@@ -901,12 +903,105 @@
     }
 }
 
+.comment-related{
+    color: #444;
+    font-size: 14px;
+    margin-top: 20px;
+    width: 100%;
+    .comment-related-title{
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: rgba(34,59,74,.5);
+        margin-bottom: 5px;
+    }
+    .comment-related-forumname{
+        color: #413a3a;
+    }
+    .comment-related-content{
+
+    }
+    .related-list{
+        display: flex;
+        flex-wrap: wrap;
+        list-style: none;
+        .related-item{
+            width: 48%;
+            margin-bottom: 10px;
+            &:nth-child(odd){
+                margin-right: 4%;
+            }
+        }
+        .related-item-link{
+            color: #000;
+            &:hover{
+                .related-item-avatar{
+                    opacity: .8;
+                }
+                .related-item-name{
+                    color: #aaa;
+                }
+            }
+        }
+        .related-item-title{
+            display: block;
+            overflow: hidden;
+            font-weight: 700;
+            font-size: 16px;
+            color: rgb(85, 85, 85);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .related-item-desc{
+            color: rgba(30,55,70,.4);
+            font-weight: 500;
+            font-size: 12px;
+        }
+        .related-item-post{
+            padding: 5px 0;
+            display: flex;
+        }
+        .related-item-avatar{
+            width: 30px;
+            height: 30px;
+            margin-right: 5px;
+            flex: none;
+            img{
+                display: block;
+                width: 100%;
+                border-radius: 3px;
+            }
+        }
+        .related-item-main{
+            flex: 1;
+            height: 30px;
+            line-height: 15px;
+            overflow: hidden;
+            font-size: 13px;
+        }
+        .related-item-name{
+            color: rgba(30,55,70,.4);
+            font-weight: 600;
+        }
+        .related-item-message{
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #42474a;
+        }
+    }
+}
+
 @keyframes disqus-loader-spinner-animation{
     0%{transform:rotate(0)}
     100%{transform:rotate(360deg)}
 }
 
 @media screen and(max-width: 450px) {
+    .comment-related .related-list .related-item {
+        width: 100%;
+        padding-left: 10px;
+    }
     .comment-item{
         .comment-item-children .comment-item-children,
         .comment-item-children .comment-box {

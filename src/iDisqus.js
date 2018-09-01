@@ -1,11 +1,14 @@
 /*!
- * v 0.2.14
  * 
- * https://github.com/fooleap/disqus-php-api
- *
+ * @author fooleap
+ * @email fooleap@gmail.com
+ * @create 2017-06-17 20:48:25
+ * @update 2018-09-01 04:26:14
+ * @version 0.2.17
  * Copyright 2017-2018 fooleap
  * Released under the MIT license
  */
+require('./iDisqus.scss');
 (function (global) {
     'use strict';
 
@@ -215,6 +218,7 @@
         _.opts.timeout = _.opts.timeout || 3000;
         _.opts.toggle = !!_.opts.toggle ? d.getElementById(_.opts.toggle) : null;
         _.opts.autoCreate = !!_.opts.autoCreate || !!_.opts.auto;
+        _.opts.relatedType = !!_.opts.relatedType ? _.opts.relatedType : 'Related'
 
         // emoji 表情
         _.opts.emojiPath = _.opts.emojiPath || _.opts.emoji_path || 'https://assets-cdn.github.com/images/icons/emoji/unicode/';
@@ -346,6 +350,8 @@
             hours: "%d小时",
             day: "1天",
             days: "%d天",
+            week: "1周",
+            weeks: "%d周",
             month: "1个月",
             months: "%d个月",
             year: "1年",
@@ -368,12 +374,14 @@
             var minutes = seconds / 60;
             var hours = minutes / 60;
             var days = hours / 24;
+            var weeks = days / 7;
+            var months = days / 30;
             var years = days / 365;
 
-            return templates.prefix + ( seconds < 45 && template('seconds', seconds) || seconds < 90 && template('minute', 1) || minutes < 45 && template('minutes', minutes) || minutes < 90 && template('hour', 1) || hours < 24 && template('hours', hours) || hours < 42 && template('day', 1) || days < 30 && template('days', days) || days < 45 && template('month', 1) || days < 365 && template('months', days / 30) || years < 1.5 && template('year', 1) || template('years', years)) + templates.suffix;
+            return templates.prefix + ( seconds < 45 && template('seconds', seconds) || seconds < 90 && template('minute', 1) || minutes < 45 && template('minutes', minutes) || minutes < 90 && template('hour', 1) || hours < 24 && template('hours', hours) || hours < 42 && template('day', 1) || days < 30 && template('days', days) || days < 45 && template('month', 1) || days < 365 && template('months', months) || years < 1.5 && template('year', 1) || template('years', years)) + templates.suffix;
         };
 
-        var elements = _.dom.querySelectorAll('.comment-item-time');
+        var elements = _.dom.querySelectorAll('time[datetime]');
         for (var i in elements) {
             var $this = elements[i];
             if (typeof $this === 'object') {
@@ -460,6 +468,7 @@
             '    </div>\n'+
             '    <ul id="comments" class="comment-list"></ul>\n'+
             '    <a href="javascript:;" class="comment-loadmore">加载更多</a>\n'+
+            '    <div class="comment-related"></div>'+
             '</div>\n'+
             '<div class="comment" id="disqus_thread"></div>';
 
@@ -642,27 +651,40 @@
         }
     };
 
-    // 热门评论
-    iDisqus.prototype.popular = function(){
+    // 热门话题
+    iDisqus.prototype.related = function(){
         var _ = this;
-        if(!!_.opts.popular){
-            getAjax(
-                _.opts.api + '/popular.php', 
-                function(resp) {
-                    var data = JSON.parse(resp);
-                    if(data.code == 0){
-                        var posts = data.response;
-                        var postsHtml = '';
-                        posts.forEach(function(item){
-                            postsHtml += '<li><a href="' + item.link.replace(_.opts.site, '') + '" title="' + item.title + '">' + item.title + '</a></li>';
-                        });
-                        _.opts.popular.innerHTML = postsHtml;
-                    }
-                },function(){
-                    console.log('获取数据失败！')
+        getAjax(
+            _.opts.api + '/list'+ _.opts.relatedType +'.php' + '?thread=' + _.stat.thread.id, 
+            function(resp) {
+                var data = JSON.parse(resp);
+                if(data.code == 0){
+                    var threads = data.response;
+                    var popHtml = '';
+                    threads.forEach(function(item){
+                        item.topPost.raw_message = item.topPost.raw_message.replace(/(\@\w+):disqus/,'$1');
+                        popHtml += '<li class="related-item">'+
+                            '<a class="related-item-link" href="' + item.link  + '" title="' + item.title + '">'+
+                            '<div class="related-item-title">' + item.title + '</div>'+
+                            '<div class="related-item-desc">'+item.posts + '条评论<span class="related-item-bullet"> • </span><time class="related-item-time" datetime="' + item.createdAt + '"></time></div></a>'+
+                            '<a class="related-item-link" href="' + item.link  +'?#comment-' + item.topPost.id + '" title="' + item.topPost.raw_message + '">'+
+                            '<div class="related-item-post">'+
+                            '<div class="related-item-avatar"><img src="'+item.topPost.avatar+'" /></div>'+
+                            '<div class="related-item-main">'+
+                            '<div class="related-item-name">'+item.topPost.name+'</div>'+
+                            '<div class="related-item-message">'+item.topPost.raw_message+'</div>'+
+                            '</div>'+
+                            '</div></a>'+
+                            '</li>';
+                    });
+                    popHtml = '<div class="comment-related-title">在 <span class="comment-related-forumname">'+_.forum.name+'</span> 上还有</div><div class="comment-related-content"><ul class="related-list">'+popHtml+'</ul></div>';
+                    _.dom.querySelector('.comment-related').innerHTML = popHtml;
+                    _.timeAgo();
                 }
-            );
-        }
+            },function(){
+                console.log('获取数据失败！')
+            }
+        );
     }
 
     // 获取评论列表
@@ -680,12 +702,13 @@
                     _.stat.offsetTop = d.documentElement.scrollTop || d.body.scrollTop;
                     _.stat.thread = data.thread;
                     _.stat.total = data.cursor.total;
-                    _.opts.avatar = data.forum.avatar;
-                    _.dom.querySelector('.comment-avatar-image').dataset.avatar = data.forum.avatar;
+                    _.forum = data.forum;
+                    _.opts.avatar = _.forum.avatar;
+                    _.dom.querySelector('.comment-avatar-image').dataset.avatar = _.forum.avatar;
                     if( _.user.logged_in == 'false' ){
-                        _.dom.querySelector('.comment-avatar-image').src = data.forum.avatar;
+                        _.dom.querySelector('.comment-avatar-image').src = _.forum.avatar;
                     }
-                    _.opts.badge =  data.forum.moderatorBadgeText;
+                    _.opts.badge =  _.forum.moderatorBadgeText;
                     _.dom.querySelector('#idisqus').classList.remove('loading');
                     _.dom.querySelector('#comment-link').href = data.link;
                     _.dom.querySelector('#comment-count').innerHTML = _.stat.total + ' 条评论';
@@ -714,6 +737,11 @@
                         _.stat.next = null;
                         loadmore.classList.add('hide');
                     }
+
+                    if(_.forum.settings.organicDiscoveryEnabled){
+                        _.related();
+                    }
+
                     if (posts.length == 0) {
                         return;
                     }
@@ -721,6 +749,7 @@
                     window.scrollTo(0, _.stat.offsetTop);
 
                     _.timeAgo();
+
 
                     if (/^#disqus|^#comment-/.test(location.hash) && !data.cursor.hasPrev && !_.stat.disqusLoaded && !_.stat.loaded) {
                         var el = _.dom.querySelector('#idisqus ' + location.hash)
@@ -1077,6 +1106,9 @@
         var $name = box.querySelector('.comment-form-name');
         var $email = box.querySelector('.comment-form-email');
         var alertmsg = box.querySelector('.comment-form-alert');
+        if($email.value == ''){
+            return;
+        }
         getAjax(
             _.opts.api + '/getgravatar.php?email=' + $email.value + '&name=' + $name.value,
             function(resp) {
@@ -1394,7 +1426,7 @@
             })
         } else {
             var postData = {
-                thread:  _.stat.thread,
+                thread:  _.stat.thread.id,
                 parent: parentId,
                 message: message,
                 name: _.user.name,
@@ -1406,11 +1438,23 @@
                 if (data.code === 0) {
                     _.dom.querySelector('.comment-item[data-id="preview"]').outerHTML = '';
                     _.stat.total += 1;
-                  _.dom.querySelector('#comment-count').innerHTML = _.stat.total + ' 条评论';
+                    _.dom.querySelector('#comment-count').innerHTML = _.stat.total + ' 条评论';
                     var post = data.response;
                     post.isPost = true;
                     _.load(post);
                     _.timeAgo();
+                    if(!!data.verifyCode){
+                        var postData = {
+                            post: JSON.stringify(post),
+                            thread: JSON.stringify(data.thread),
+                            parent: JSON.stringify(data.parent),
+                            code: data.verifyCode
+                        }
+                        // 异步发送邮件
+                        postAjax( _.opts.api + '/sendemail.php', postData, function(resp){
+                            console.info('邮件发送成功！');
+                        })
+                    }
                 } else if (data.code === 2) {
                     alertmsg.innerHTML = data.response;
                     _.dom.querySelector('.comment-item[data-id="preview"]').outerHTML = '';
@@ -1586,16 +1630,16 @@
     }
 
     // reset DISQUS on AJAX sites
-    iDisqus.prototype.reset = function() {
-        var _ = this;
-        DISQUS.reset({
-            reload: true,
-            config: function () {
-                this.page.identifier = location.pathname;
-                this.page.url = _.opts.site + location.pathname;
-            }
-        })
-    }
+  iDisqus.prototype.reset = function() {
+    var _ = this;
+    DISQUS.reset({
+        reload: true,
+        config: function () {
+            this.page.identifier = location.pathname;
+            this.page.url = _.opts.site + location.pathname;
+        }
+    })
+}
 
     /* CommonJS */
     if (typeof require === 'function' && typeof module === 'object' && module && typeof exports === 'object' && exports)
