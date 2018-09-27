@@ -3,8 +3,8 @@
  * @author fooleap
  * @email fooleap@gmail.com
  * @create 2017-06-17 20:48:25
- * @update 2018-09-08 11:02:43
- * @version 0.2.18
+ * @update 2018-09-23 23:44:35
+ * @version 0.2.24
  * Copyright 2017-2018 fooleap
  * Released under the MIT license
  */
@@ -41,9 +41,11 @@ require('./iDisqus.scss');
     }
     
     function postAjax(url, data, success, error) {
-        var params = typeof data == 'string' ? data : Object.keys(data).map(
-            function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(data[k]) }
-        ).join('&');
+        var params = typeof data == 'string' ? data : Object.keys(data).filter(function(k){
+            return data[k] != null;
+        }).map(function(k){ 
+            return encodeURIComponent(k) + '=' + encodeURIComponent(data[k])
+        }).join('&');
 
         var xhr = new XMLHttpRequest();
         xhr.open('POST', url);
@@ -59,8 +61,15 @@ require('./iDisqus.scss');
         return xhr;
     }
     
-    // matches & closest polyfill https://github.com/jonathantneal/closest
+    function generateGUID() {
+        var time = Number(new Date().getTime().toString().substring(3));
+        var guid = Math.abs(time + Math.floor(Math.random() * 1e5) - 48*1e6+Math.floor(Math.random()*1e6)).toString(32);
+        guid +=  Math.floor(Math.random() * 1e9).toString(32);
+        return guid;
+    }
+
     (function (ElementProto) {
+        // matches & closest polyfill https://github.com/jonathantneal/closest
         if (typeof ElementProto.matches !== 'function') {
             ElementProto.matches = ElementProto.msMatchesSelector || ElementProto.mozMatchesSelector || ElementProto.webkitMatchesSelector || function matches(selector) {
                 var element = this;
@@ -90,6 +99,19 @@ require('./iDisqus.scss');
                 return null;
             };
         }
+
+        // 事件委托
+        ElementProto.on = function on(eventName, selector, handler) {
+            this.addEventListener(eventName, function(e) {
+                for (var target = e.target; target && target != this; target = target.parentNode) {
+                    if (target.matches(selector)) {
+                        handler.call(null, e, target);
+                        break;
+                    }
+                }
+            }, true);
+        };
+
     })(window.Element.prototype);
 
     // 访客信息
@@ -111,6 +133,15 @@ require('./iDisqus.scss');
             _.avatar = l.getItem('avatar');
             _.type = l.getItem('type');
             _.logged_in = l.getItem('logged_in');
+            _.unique = l.getItem('disqus_unique')
+            if( !l.getItem('vote') ){
+                l.setItem('vote', JSON.stringify({}));
+            }
+            if( !l.getItem('reaction_vote') ){
+                l.setItem('reaction_vote', JSON.stringify({}));
+            }
+            _.vote = JSON.parse(l.getItem('vote'));
+            _.reactionVote = JSON.parse(l.getItem('reaction_vote'));
 
             var boxarr = _.dom.getElementsByClassName('comment-box');
             if( _.logged_in == 'true' ) {
@@ -133,6 +164,26 @@ require('./iDisqus.scss');
                 });
                 l.setItem('logged_in', 'false');
             }
+
+            if(_.type == '1' &&  _.logged_in == 'true'){
+                var $login = _.dom.querySelector('.comment-login');
+                if(!!$login){
+                    $login.innerHTML = _.name + '<label class="comment-logout"  title="退出" for="comment-user">退出登录</label>';
+                    $login.title = _.name;
+                    $login.classList.add('comment-user');
+                    $login.classList.remove('comment-login');
+                    _.dom.querySelector('#comment-user').checked = false;
+                }
+            } else {
+                var $user = _.dom.querySelector('.comment-user');
+                if(!!$user){
+                    $user.innerHTML = '登录';
+                    $user.title = '使用 Disqus 帐号授权登录';
+                    $user.classList.add('comment-login');
+                    $user.classList.remove('comment-user');
+                }
+            }
+
         },
 
         // 自动登录
@@ -141,10 +192,22 @@ require('./iDisqus.scss');
             getAjax( _.opts.api +'/user.php', function(resp){
                 var data = JSON.parse(resp);
                 if( data.code == 0 ){
-                    _.submit(data.response);
+                    var user = data.response;
+                    _.avatar = user.avatar;
+                    _.name = user.name;
+                    _.username = user.username;
+                    _.url = user.url;
+                    _.type = user.type
+                    _.submit();
                 } else {
                     if( _.type == '1' ){
                         l.setItem('logged_in', 'false');
+                        _.init();
+                    } else {
+                        l.setItem('type', '0');
+                        if( !_.unique ){
+                            l.setItem('disqus_unique', generateGUID());
+                        }
                         _.init();
                     }
                 }
@@ -177,17 +240,22 @@ require('./iDisqus.scss');
                 l.removeItem('avatar');
                 l.removeItem('name');
                 l.removeItem('url');
+                l.removeItem('disqus_unique');
+                l.removeItem('vote');
+                l.removeItem('reaction_vote');
                 _.user.init();
             })
         },
 
         // 提交访客信息
-        submit: function(user){
-            l.setItem('email', user.email);
-            l.setItem('type', user.type);
-            l.setItem('name', user.name);
-            l.setItem('url', user.url);
-            l.setItem('avatar', user.avatar);
+        submit: function(){
+            var _ = this;
+            l.setItem('email', _.email);
+            l.setItem('type', _.type);
+            l.setItem('name', _.name);
+            l.setItem('url', _.url);
+            l.setItem('avatar', _.avatar);
+            l.setItem('disqus_unique', _.unique);
             l.setItem('logged_in', 'true');
             this.init();
         }
@@ -218,7 +286,7 @@ require('./iDisqus.scss');
         _.opts.timeout = _.opts.timeout || 3000;
         _.opts.toggle = !!_.opts.toggle ? d.getElementById(_.opts.toggle) : null;
         _.opts.autoCreate = !!_.opts.autoCreate || !!_.opts.auto;
-        _.opts.relatedType = !!_.opts.relatedType ? _.opts.relatedType : 'Related'
+        _.opts.relatedType = _.opts.relatedType || 'Related'
 
         // emoji 表情
         _.opts.emojiPath = _.opts.emojiPath || _.opts.emoji_path || 'https://assets-cdn.github.com/images/icons/emoji/unicode/';
@@ -306,8 +374,12 @@ require('./iDisqus.scss');
             next: null,         // 下条评论
             message: null,      // 新评论
             mediaHtml: null,    // 新上传图片
+            forum: {},          // 站点信息
+            thread: {},         // 文章信息
+            post: {},           // 评论数据
+            media: {},          // 媒体信息
             root: [],           // 根评论
-            count: 0,           // 评论数
+            order: 'desc',      // 排序
             users: [],          // Disqus 会员
             imageSize: [],      // 已上传图片大小
             disqusLoaded: false // Disqus 已加载
@@ -419,70 +491,97 @@ require('./iDisqus.scss');
         _.emojiList.forEach(function(item){
             emojiList += '<li class="emojione-item" title="'+ item.title+'" data-code=":'+item.code+':"><img class="emojione-item-image" src="'+_.opts.emojiPath + item.unicode+'.png" /></li>';
         })
-        _.dom.innerHTML = '<div class="comment loading" id="idisqus">\n'+
-            '    <div class="loading-container" data-tip="正在加载评论……"><svg class="loading-bg" width="72" height="72" viewBox="0 0 720 720" version="1.1" xmlns="http://www.w3.org/2000/svg"><path class="ring" fill="none" stroke="#9d9ea1" d="M 0 -260 A 260 260 0 1 1 -80 -260" transform="translate(400,400)" stroke-width="50" /><polygon transform="translate(305,20)" points="50,0 0,100 18,145 50,82 92,145 100,100" style="fill:#9d9ea1"/></svg></div>\n'+
-            '    <div class="comment-header"><span class="comment-header-item" id="comment-count">评论</span><a target="_blank" class="comment-header-item" id="comment-link">Disqus 讨论区</a></div>\n'+
-            '    <div class="comment-box">\n'+
-            '        <div class="comment-avatar avatar"><img class="comment-avatar-image" src="//a.disquscdn.com/images/noavatar92.png" data-avatar="//a.disquscdn.com/images/noavatar92.png"></div>\n'+
-            '        <div class="comment-form">\n'+
-            '            <div class="comment-form-wrapper">\n'+
-            '                <textarea class="comment-form-textarea" placeholder="加入讨论……"></textarea>\n'+
-            '                <div class="comment-form-alert"></div>\n'+
-            '                <div class="comment-image">\n'+
-            '                    <ul class="comment-image-list"></ul>\n'+
-            '                    <div class="comment-image-progress">\n'+
-            '                        <div class="comment-image-loaded"></div>\n'+
-            '                    </div>\n'+
-            '                </div>\n'+
-            '                <div class="comment-actions">\n'+
-            '                    <div class="comment-actions-group">\n'+
-            '                        <input id="emoji-input" class="comment-actions-input" type="checkbox"> \n'+
-            '                        <label class="comment-actions-label emojione" for="emoji-input">\n'+
-            '                            <svg class="icon" fill="#c2c6cc" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200">\n'+
-            '                                <g>\n'+
-            '                                <title>选择表情</title>\n'+
-            '                                <path d="M512 1024c-282.713043 0-512-229.286957-512-512s229.286957-512 512-512c282.713043 0 512 229.286957 512 512S792.486957 1024 512 1024zM512 44.521739c-258.226087 0-467.478261 209.252174-467.478261 467.478261 0 258.226087 209.252174 467.478261 467.478261 467.478261s467.478261-209.252174 467.478261-467.478261C979.478261 253.773913 768 44.521739 512 44.521739z"></path>\n'+
-            '                                <path d="M801.391304 554.295652c0 160.278261-129.113043 289.391304-289.391304 289.391304s-289.391304-129.113043-289.391304-289.391304L801.391304 554.295652z"></path>\n'+
-            '                                <path d="M674.504348 349.495652m-57.878261 0a2.6 2.6 0 1 0 115.756522 0 2.6 2.6 0 1 0-115.756522 0Z"></path>\n'+
-            '                                <path d="M347.269565 349.495652m-57.878261 0a2.6 2.6 0 1 0 115.756522 0 2.6 2.6 0 1 0-115.756522 0Z"></path>\n'+
-            '                                </g>\n'+
-            '                            </svg>\n'+
-            '                            <ul class="emojione-list">'+emojiList+'</ul>\n'+
-            '                        </label>\n'+
-            '                        <input id="upload-input" class="comment-actions-input comment-image-input" type="file" accept="image/*" name="file"> \n'+
-            '                        <label class="comment-actions-label" for="upload-input">\n'+
-            '                            <svg class="icon" fill="#c2c6cc" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200">\n'+
-            '                                <g>\n'+
-            '                                <title>上传图片</title>\n'+
-            '                                <path d="M15.515152 15.515152 15.515152 15.515152 15.515152 15.515152Z"></path>\n'+
-            '                                <path d="M15.515152 139.636364l0 806.787879 992.969697 0 0-806.787879-992.969697 0zM946.424242 884.363636l-868.848485 0 0-682.666667 868.848485 0 0 682.666667zM698.181818 356.848485c0-51.417212 41.673697-93.090909 93.090909-93.090909s93.090909 41.673697 93.090909 93.090909c0 51.417212-41.673697 93.090909-93.090909 93.090909s-93.090909-41.673697-93.090909-93.090909zM884.363636 822.30303l-744.727273 0 186.181818-496.484848 248.242424 310.30303 124.121212-93.090909z"></path>\n'+
-            '                                </g>\n'+
-            '                            </svg>\n'+
-            '                        </label>\n'+
-            '                    </div>\n'+
-            '                    <div class="comment-actions-form">\n'+
-            '                        <label class="comment-actions-label exit" title="退出登录">\n'+
-            '                            <svg class="icon" fill="#c2c6cc" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="48" height="48">\n'+
-            '                                <path d="M348.870666 210.685443l378.570081 0c32.8205 0 58.683541 26.561959 58.683541 58.683541 0 162.043606 0 324.804551 0 486.848157 0 32.81129-26.561959 58.674331-58.683541 58.674331L348.870666 814.891472c-10.477632 0-18.850323-8.363482-18.850323-18.841114l0-37.728276c0-10.477632 8.372691-18.841114 18.850323-18.841114l343.645664 0c10.477632 0 18.850323-8.372691 18.850323-18.850323L711.366653 304.983109c0-10.477632-8.372691-18.841114-18.850323-18.841114L348.870666 286.141996c-10.477632 0-18.850323-8.363482-18.850323-18.841114l0-37.728276C329.98248 219.095997 338.393034 210.685443 348.870666 210.685443z"></path>\n'+
-            '                                <path d="M128.152728 526.436804l112.450095 112.450095c6.985088 6.985088 19.567661 6.985088 26.552749 0l26.561959-26.561959c6.985088-6.985088 6.985088-19.567661 0-26.552749l-34.925441-34.925441L494.168889 550.84675c10.477632 0 18.850323-8.372691 18.850323-18.850323l0-37.719066c0-10.477632-8.372691-18.850323-18.850323-18.850323L258.754229 475.427036l34.925441-34.925441c6.985088-6.985088 6.985088-19.567661 0-26.552749l-26.561959-26.524097c-6.985088-6.985088-19.567661-6.985088-26.552749 0L128.152728 499.875868C120.431883 506.859933 120.431883 519.451716 128.152728 526.436804z"></path>\n'+
-            '                            </svg>\n'+
-            '                        </label>\n'+
-            '                        <button class="comment-form-submit">\n'+
-            '                            <svg class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200">\n'+
-            '                                <path d="M565.747623 792.837176l260.819261 112.921839 126.910435-845.424882L66.087673 581.973678l232.843092 109.933785 562.612725-511.653099-451.697589 563.616588-5.996574 239.832274L565.747623 792.837176z" fill="#ffffff"></path>\n'+
-            '                            </svg>\n'+
-            '                        </button>\n'+
-            '                    </div>\n'+
-            '                </div>\n'+
-            '            </div>\n'+
-            '            <div class="comment-form-user">'+ ( _.opts.mode != 1 ? '<div class="comment-form-auth"><button class="comment-form-login" title="使用 Disqus 帐号登录"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 200 200"><path fill="#2E9FFF" d="M102.535 167.5c-16.518 0-31.621-6.036-43.298-16.021L30.5 155.405l11.102-27.401A67.658 67.658 0 0 1 35.564 100c0-37.277 29.984-67.5 66.971-67.5 36.984 0 66.965 30.223 66.965 67.5 0 37.284-29.98 67.5-66.965 67.5zm36.567-67.693v-.188c0-19.478-13.736-33.367-37.42-33.367h-25.58v67.5h25.201c23.868.001 37.799-14.468 37.799-33.945zm-37.138 17.361h-7.482V82.841h7.482c10.989 0 18.283 6.265 18.283 17.07v.188c0 10.896-7.294 17.069-18.283 17.069z"/></svg></button></div><span> 或 </span>' : '' ) + '<form class="comment-form-guest"><input class="comment-form-input comment-form-name" type="text" name="name" placeholder="名字（必填）" autocomplete="name"><input class="comment-form-input comment-form-email" type="email" name="email" placeholder="邮箱（必填）" autocomplete="email"><input class="comment-form-input comment-form-url" type="url" name="url" placeholder="网址（可选）" autocomplete="url"></form></div>\n'+
-            '        </div>\n'+
-            '    </div>\n'+
-            '    <ul id="comments" class="comment-list"></ul>\n'+
-            '    <a href="javascript:;" class="comment-loadmore">加载更多</a>\n'+
-            '    <div class="comment-related"></div>'+
-            '</div>\n'+
-            '<div class="comment" id="disqus_thread"></div>';
+        _.dom.innerHTML = `<div class="comment init" id="idisqus">
+            <div class="comment-reaction">
+                <div class="comment-reaction-header">
+                    <div class="comment-reaction-prompt"></div>
+                    <div class="comment-reaction-total"></div>
+                </div>
+                <div class="comment-reaction-list"></div>
+            </div>
+            <div class="init-container" data-tips="正在初始化……"><svg class="init-bg" width="72" height="72" viewBox="0 0 720 720" version="1.1" xmlns="http://www.w3.org/2000/svg"><path class="ring" fill="none" stroke="#9d9ea1" d="M 0 -260 A 260 260 0 1 1 -80 -260" transform="translate(400,400)" stroke-width="50" /><polygon transform="translate(305,20)" points="50,0 0,100 18,145 50,82 92,145 100,100" style="fill:#9d9ea1"/></svg></div>
+            <div class="comment-header">
+                <div class="comment-header-primary">
+                    <span class="comment-header-item" id="comment-count">评论</span>
+                    <a class="comment-header-item" id="comment-link" target="_blank">在线讨论</a>
+                </div>
+                <div class="comment-header-menu">
+                    <input class="comment-header-checkbox" type="checkbox" id="comment-user">
+                    <label class="comment-header-item comment-login" title="使用 Disqus 帐号授权登录" for="comment-user">登录</label>
+                </div>
+            </div>
+            <div class="comment-navbar">
+                <div class="comment-navbar-item">
+                    <a class="comment-recommend" href="javascript:;"><svg t="1537508059126" class="icon" style="" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="3234" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24"><path d="M489.993 887.107 177.906 586.021c-4.002-3.501-114.033-104.031-114.033-224.063 0-146.54 89.526-234.065 239.069-234.065 87.523 0 169.546 69.019 209.058 108.03 39.512-39.011 121.535-108.03 209.059-108.03 149.542 0 239.068 87.525 239.068 234.065 0 120.033-110.031 220.563-114.533 225.065L534.007 887.107c-6 6-14.003 9-22.007 9C503.997 896.107 495.993 893.107 489.993 887.107z" p-id="3235"></path></svg><span class="comment-recommend-text">推荐</span><span class="comment-recommend-count"></span></a>
+                </div>
+                <div class="comment-navbar-item comment-order">
+                  <input class="comment-order-radio" id="order-popular" type="radio" name="comment-order" value="popular" />
+                  <label class="comment-order-label" for="order-popular" title="按评分高低排序">最佳</label>
+                  <input class="comment-order-radio" id="order-desc" type="radio" name="comment-order" value="desc" />
+                  <label class="comment-order-label" for="order-desc" title="按从新到旧排序">最新</label>
+                  <input class="comment-order-radio" id="order-asc" type="radio" name="comment-order" value="asc" />
+                  <label class="comment-order-label" for="order-asc" title="按从旧到新排序">最早</label>
+                </div>
+            </div>
+            <div class="comment-box">
+                <div class="comment-avatar avatar"><img class="comment-avatar-image" src="//a.disquscdn.com/images/noavatar92.png" data-avatar="//a.disquscdn.com/images/noavatar92.png"></div>
+                <div class="comment-form">
+                    <div class="comment-form-wrapper">
+                        <textarea class="comment-form-textarea" placeholder="加入讨论……"></textarea>
+                        <div class="comment-form-alert"></div>
+                        <div class="comment-image">
+                            <ul class="comment-image-list"></ul>
+                            <div class="comment-image-progress"><div class="comment-image-loaded"></div></div>
+                        </div>
+        
+                        <div class="comment-actions">
+        
+                            <div class="comment-actions-group">
+                                <input id="emoji-input" class="comment-actions-input" type="checkbox">
+                                <label class="comment-actions-label emojione" for="emoji-input">
+                                    <svg class="icon" fill="#c2c6cc" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200">
+                                        <g>
+                                            <title>选择表情</title>
+                                            <path d="M512 1024c-282.713043 0-512-229.286957-512-512s229.286957-512 512-512c282.713043 0 512 229.286957 512 512S792.486957 1024 512 1024zM512 44.521739c-258.226087 0-467.478261 209.252174-467.478261 467.478261 0 258.226087 209.252174 467.478261 467.478261 467.478261s467.478261-209.252174 467.478261-467.478261C979.478261 253.773913 768 44.521739 512 44.521739z"></path>
+                                            <path d="M801.391304 554.295652c0 160.278261-129.113043 289.391304-289.391304 289.391304s-289.391304-129.113043-289.391304-289.391304L801.391304 554.295652z"></path>
+                                            <path d="M674.504348 349.495652m-57.878261 0a2.6 2.6 0 1 0 115.756522 0 2.6 2.6 0 1 0-115.756522 0Z"></path>
+                                            <path d="M347.269565 349.495652m-57.878261 0a2.6 2.6 0 1 0 115.756522 0 2.6 2.6 0 1 0-115.756522 0Z"></path>
+                                        </g>
+                                    </svg>
+                                    <ul class="emojione-list">${ emojiList }</ul>
+                                </label>
+                                <input id="upload-input" class="comment-actions-input comment-image-input" type="file" accept="image/*" name="file">
+                                <label class="comment-actions-label" for="upload-input">
+                                    <svg class="icon" fill="#c2c6cc" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200">
+                                        <g>
+                                            <title>上传图片</title>
+                                            <path d="M15.515152 15.515152 15.515152 15.515152 15.515152 15.515152Z"></path>
+                                            <path d="M15.515152 139.636364l0 806.787879 992.969697 0 0-806.787879-992.969697 0zM946.424242 884.363636l-868.848485 0 0-682.666667 868.848485 0 0 682.666667zM698.181818 356.848485c0-51.417212 41.673697-93.090909 93.090909-93.090909s93.090909 41.673697 93.090909 93.090909c0 51.417212-41.673697 93.090909-93.090909 93.090909s-93.090909-41.673697-93.090909-93.090909zM884.363636 822.30303l-744.727273 0 186.181818-496.484848 248.242424 310.30303 124.121212-93.090909z"></path>
+                                        </g>
+                                    </svg>
+                                </label>
+                            </div>
+        
+                            <div class="comment-actions-form">
+                                <button class="comment-form-submit">
+                                    <svg class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200">
+                                        <path d="M565.747623 792.837176l260.819261 112.921839 126.910435-845.424882L66.087673 581.973678l232.843092 109.933785 562.612725-511.653099-451.697589 563.616588-5.996574 239.832274L565.747623 792.837176z" fill="#ffffff"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="comment-form-user">
+                        <form class="comment-form-guest"><input class="comment-form-input comment-form-name" type="text" name="name" placeholder="名字（必填）" autocomplete="name" /><input class="comment-form-input comment-form-email" type="email" name="email" placeholder="邮箱（必填）" autocomplete="email" /><input class="comment-form-input comment-form-url" type="url" name="url" placeholder="网址（可选）" autocomplete="url" /></form>
+                    </div>
+                </div>
+            </div>
+            <ul id="comments" class="comment-list" data-tips="评论加载中……"></ul>
+            <a href="javascript:;" class="comment-loadmore hide">加载更多</a>
+            <div class="comment-related"></div>
+        </div>
+        <div class="comment" id="disqus_thread"></div>`;
 
         _.user = new User(_.dom,_.opts);
         _.box = _.dom.querySelector('.comment-box').outerHTML.replace(/<label class="comment-actions-label exit"(.|\n)*<\/label>\n/,'').replace('comment-form-wrapper','comment-form-wrapper editing').replace(/加入讨论……/,'');
@@ -491,7 +590,9 @@ require('./iDisqus.scss');
             login: _.user.login.bind(_),
             loadMore: _.loadMore.bind(_),
             post: _.post.bind(_),
-            postThread: _.postThread.bind(_),
+            threadCreate: _.threadCreate.bind(_),
+            threadVote: _.threadVote.bind(_),
+            reactionVote: _.reactionVote.bind(_),
             remove: _.remove.bind(_),
             show: _.show.bind(_),
             toggle: _.toggle.bind(_),
@@ -500,20 +601,47 @@ require('./iDisqus.scss');
             jump: _.jump.bind(_),
             mention: _.mention.bind(_),
             keySelect: _.keySelect.bind(_),
-            field: _.field,
+            field: _.field.bind(_),
             focus: _.focus,
-            input: _.input
+            input: _.input.bind(_),
+            parentShow: _.parentShow.bind(_),
+            selectOrder: _.selectOrder.bind(_)
         };
+
+        var $iDisqus = _.dom.querySelector('#idisqus');
+        $iDisqus.on('blur','.comment-form-textarea', _.handle.focus);
+        $iDisqus.on('focus','.comment-form-textarea', _.handle.focus);
+        $iDisqus.on('input','.comment-form-textarea', _.handle.input);
+        $iDisqus.on('propertychange','.comment-form-textarea', _.handle.input);
+        $iDisqus.on('keyup','.comment-form-textarea', _.handle.mention);
+        $iDisqus.on('keydown', '.comment-form-textarea', _.handle.keySelect);
+        $iDisqus.on('blur', '.comment-form-name', _.handle.verify);
+        $iDisqus.on('blur', '.comment-form-email',  _.handle.verify);
+        $iDisqus.on('click', '.comment-form-submit',  _.handle.post);
+        $iDisqus.on('click', '.comment-login',  _.handle.login);
+        $iDisqus.on('change', '.comment-image-input',  _.handle.upload);
+        $iDisqus.on('click', '.emojione-item',  _.handle.field);
+        $iDisqus.on('click', '.comment-logout', _.handle.logout);
+        $iDisqus.on('click', '.comment-item-reply', _.handle.show);
+        $iDisqus.on('click', '.comment-item-cancel',  _.handle.show);
+        $iDisqus.on('click','.comment-item-avatar', _.handle.jump);
+        $iDisqus.on('click','.comment-item-pname', _.handle.jump);
+        $iDisqus.on('mouseover','.comment-item-pname', _.handle.parentShow);
+        $iDisqus.on('click', '.comment-loadmore', _.handle.loadMore);
+        $iDisqus.on('click', '#thread-submit', _.handle.threadCreate);
+        $iDisqus.on('click', '.comment-recommend', _.handle.threadVote);
+        $iDisqus.on('click', '.comment-reaction-btn:not(.selected)', _.handle.reactionVote);
+        $iDisqus.on('change', '.comment-order-radio', _.handle.selectOrder);
 
         switch(_.opts.mode){
             case 1:
                 _.disqus();
                 break;
             case 2: 
-                _.getlist();
+                _.threadInit();
                 break;
             case 3: 
-                _.getlist();
+                _.threadInit();
                 _.disqus();
                 break;
             default:
@@ -542,16 +670,16 @@ require('./iDisqus.scss');
         }
 
         var _ = this;
-        var _tip = _.dom.querySelector('.loading-container').dataset.tip;
+        var _tips = _.dom.querySelector('.init-container').dataset.tips;
         if(_.opts.site != location.origin){
             console.log('本地环境不加载 Disqus 评论框！');
             if( _.opts.mode == 1 ){
-                _.getlist();
+                _.threadInit();
             }
             return;
         }
         if(!_.stat.disqusLoaded ){
-            _tip = '尝试连接 Disqus……';
+            _tips = '尝试连接 Disqus……';
 
             var s = d.createElement('script');
             s.src = '//'+_.opts.forum+'.disqus.com/embed.js';
@@ -559,12 +687,12 @@ require('./iDisqus.scss');
             s.onload = function(){
                 _.dom.querySelector('#idisqus').style.display = 'none';
                 _.stat.disqusLoaded = true;
-                _tip = '连接成功，加载 Disqus 评论框……'
+                _tips = '连接成功，加载 Disqus 评论框……'
             } 
             s.onerror = function(){
                 if( _.opts.mode == 1){
-                    _tip = '连接失败，加载简易评论框……';
-                    _.getlist();
+                    _tips = '连接失败，加载简易评论框……';
+                    _.threadInit();
                 }
             }
 
@@ -579,14 +707,14 @@ require('./iDisqus.scss');
             xhr.ontimeout = function () {
                 xhr.abort();
                 if( _.opts.mode == 1){
-                    _tip = '连接超时，加载简易评论框……';
-                    _.getlist();
+                    _tips = '连接超时，加载简易评论框……';
+                    _.threadInit();
                 }
             }
             xhr.onerror = function() {
                 if( _.opts.mode == 1){
-                    _tip = '连接失败，加载简易评论框……';
-                    _.getlist();
+                    _tips = '连接失败，加载简易评论框……';
+                    _.threadInit();
                 }
             }
             xhr.send();
@@ -604,31 +732,6 @@ require('./iDisqus.scss');
         [].forEach.call(el, function(item){
             item.addEventListener(evt, func, false);
         });
-    }
-
-    // 移除事件监听
-    iDisqus.prototype.removeListener = function (els, evt, func){
-        var _ = this;
-        var el = _.dom.getElementsByClassName(els);
-        [].forEach.call(el, function(item){
-            item.removeEventListener(evt, func, false);
-        });
-    }
-
-    // 添加所有事件监听
-    iDisqus.prototype.addAllListeners = function (){
-        var _ = this;
-        _.addListener('exit', 'click', _.handle.logout);
-        _.addListener('comment-form-textarea', 'blur',  _.handle.focus);
-        _.addListener('comment-form-textarea', 'focus',  _.handle.focus);
-        _.addListener('comment-form-textarea', 'input',  _.handle.input);
-        _.addListener('comment-form-textarea', 'keyup',  _.handle.mention);
-        _.addListener('comment-form-name', 'blur',  _.handle.verify);
-        _.addListener('comment-form-email', 'blur',  _.handle.verify);
-        _.addListener('comment-form-submit', 'click',  _.handle.post);
-        _.addListener('comment-form-login', 'click',  _.handle.login);
-        _.addListener('comment-image-input', 'change',  _.handle.upload);
-        _.addListener('emojione-item', 'click', _.handle.field);
     }
 
     // 评论计数
@@ -663,33 +766,37 @@ require('./iDisqus.scss');
         }
     };
 
-    // 热门话题
-    iDisqus.prototype.related = function(){
+    // 加载热门话题
+    iDisqus.prototype.loadRelated = function(){
         var _ = this;
+        if( _.stat.forum.settings.organicDiscoveryEnabled == false || _.stat.relatedLoaded){
+            return;
+        }
         getAjax(
             _.opts.api + '/list'+ _.opts.relatedType +'.php' + '?thread=' + _.stat.thread.id, 
             function(resp) {
                 var data = JSON.parse(resp);
                 if(data.code == 0){
+                    _.stat.relatedLoaded = true;
                     var threads = data.response;
                     var popHtml = '';
                     threads.forEach(function(item){
-                        item.topPost.raw_message = item.topPost.raw_message.replace(/(\@\w+):disqus/,'$1');
-                        popHtml += '<li class="related-item">'+
-                            '<a class="related-item-link" href="' + item.link  + '" title="' + item.title + '">'+
-                            '<div class="related-item-title">' + item.title + '</div>'+
-                            '<div class="related-item-desc">'+item.posts + '条评论<span class="related-item-bullet"> • </span><time class="related-item-time" datetime="' + item.createdAt + '"></time></div></a>'+
-                            '<a class="related-item-link" href="' + item.link  +'?#comment-' + item.topPost.id + '" title="' + item.topPost.raw_message + '">'+
-                            '<div class="related-item-post">'+
-                            '<div class="related-item-avatar"><img src="'+item.topPost.avatar+'" /></div>'+
-                            '<div class="related-item-main">'+
-                            '<div class="related-item-name">'+item.topPost.name+'</div>'+
-                            '<div class="related-item-message">'+item.topPost.raw_message+'</div>'+
-                            '</div>'+
-                            '</div></a>'+
-                            '</li>';
+                        var message = item.topPost.message.replace(/<[^>]*>/g, '');
+                        popHtml += `<li class="related-item">
+                        <a class="related-item-link" href="${item.link}" title="${item.title}">
+                        <div class="related-item-title">${item.title}</div>
+                        <div class="related-item-desc">${item.posts}条评论<span class="related-item-bullet"> • </span><time class="related-item-time" datetime="${item.createdAt}"></time></div></a>
+                        <a class="related-item-link" href="${item.link}?#comment-${item.topPost.id}" title="${ message }">
+                        <div class="related-item-post">
+                        <div class="related-item-avatar"><img src="${item.topPost.avatar}" /></div>
+                        <div class="related-item-main">
+                        <div class="related-item-name">${ item.topPost.name }</div>
+                        <div class="related-item-message">${ message }</div>
+                        </div>
+                        </div></a>
+                        </li>`;
                     });
-                    popHtml = '<div class="comment-related-title">在 <span class="comment-related-forumname">'+_.forum.name+'</span> 上还有</div><div class="comment-related-content"><ul class="related-list">'+popHtml+'</ul></div>';
+                    popHtml = `<div class="comment-related-title">在<span class="comment-related-forumname">${_.stat.forum.name}</span>上还有</div><div class="comment-related-content"><ul class="related-list">${popHtml}</ul></div>`;
                     _.dom.querySelector('.comment-related').innerHTML = popHtml;
                     _.timeAgo();
                 }
@@ -697,6 +804,63 @@ require('./iDisqus.scss');
                 console.log('获取数据失败！')
             }
         );
+    };
+
+    // 加载反应
+    iDisqus.prototype.loadReactions = function(){
+        var _ = this;
+        if(_.stat.forum.settings.threadReactionsEnabled == false){
+            return;
+        }
+        getAjax( _.opts.api + '/threadReactionsLoadReations.php' + '?thread=' + _.stat.thread.id, function(resp) {
+            var data  = JSON.parse(resp);
+            if( data.response.eligible ){
+                _.dom.querySelector('.comment-reaction-prompt').innerHTML = data.response.prompt;
+                var reactions = data.response.reactions;
+                var total = 0;
+                var reaListHtml = '';
+                var selectedId = _.user.reactionVote[_.stat.thread.id];
+                selectedId = selectedId || (!!data.selected ? data.selected.id : 0);
+                reactions.forEach(function(item){
+                    total += item.votes;
+                    reaListHtml += `<li class="comment-reaction-item"><a class="comment-reaction-btn${(selectedId == item.id  ? ' selected' : '')}" data-id="${ item.id }" href="javascript:;"><img class="comment-reaction-image" src="${ item.imageUrl }"> ${ item.text }</a><div class="comment-reaction-count">${ item.votes }</div></li>`;
+                })
+                _.dom.querySelector('.comment-reaction-list').innerHTML = reaListHtml;
+                _.dom.querySelector('.comment-reaction-total').innerHTML = total + ' 人次参与';
+            }
+        },function(){})
+
+    };
+
+    // 反应打分事件
+    iDisqus.prototype.reactionVote = function(e, target){
+        var _ = this;
+        var $reaction = target.closest('.comment-reaction-item');
+        var $count = $reaction.querySelector('.comment-reaction-count');
+        var reactionId = target.dataset.id;
+        var postData = {
+            thread: _.stat.thread.id,
+            unique: _.user.unique,
+            reaction: reactionId
+        }
+        postAjax( _.opts.api + '/threadReactionsVote.php', postData, function(resp){
+            _.user.reactionVote[_.stat.thread.id] = reactionId;
+            l.setItem('reaction_vote', JSON.stringify(_.user.reactionVote));
+            target.classList.add('selected');
+            $count.innerHTML ++
+        })
+    }
+
+    // 排序
+    iDisqus.prototype.selectOrder = function(e, target){
+       var _ = this;
+       var order = target.value;
+       sessionStorage.setItem('order', order);
+       _.stat.order = order;
+       _.dom.querySelector('.comment-list').innerHTML = '';
+       _.dom.querySelector('.comment-loadmore').classList.add('hide');
+       _.stat.next = null;
+       _.getlist();
     }
 
     // 获取评论列表
@@ -706,24 +870,16 @@ require('./iDisqus.scss');
         if (typeof DISQUS === 'object') {
             return;
         }
+        _.dom.querySelector('#idisqus').classList.add('loading');
+        _.dom.querySelector('.comment-list').dataset.tips = '评论加载中……';
         getAjax(
-            _.opts.api + '/getcomments.php?ident=' + _.opts.identifier + '&link=' + _.opts.url + (!!_.stat.next ? '&cursor=' + _.stat.next : ''),
+            _.opts.api + '/getcomments.php?thread=' + _.stat.thread.id + (!!_.stat.next ? '&cursor=' + _.stat.next : '') + '&order=' + _.stat.order,
             function(resp){
                 var data = JSON.parse(resp);
                 if (data.code === 0) {
                     _.stat.offsetTop = d.documentElement.scrollTop || d.body.scrollTop;
-                    _.stat.thread = data.thread;
-                    _.stat.total = data.cursor.total;
-                    _.forum = data.forum;
-                    _.opts.avatar = _.forum.avatar;
-                    _.dom.querySelector('.comment-avatar-image').dataset.avatar = _.forum.avatar;
-                    if( _.user.logged_in == 'false' ){
-                        _.dom.querySelector('.comment-avatar-image').src = _.forum.avatar;
-                    }
-                    _.opts.badge =  _.forum.moderatorBadgeText;
-                    _.dom.querySelector('#idisqus').classList.remove('loading');
-                    _.dom.querySelector('#comment-link').href = data.link;
-                    _.dom.querySelector('#comment-count').innerHTML = _.stat.total + ' 条评论';
+
+                    _.dom.querySelector('#idisqus').classList.remove('loading')
                     var loadmore = _.dom.querySelector('.comment-loadmore');
                     var posts = !!data.response ? data.response : [];
                     _.stat.root = [];
@@ -738,30 +894,44 @@ require('./iDisqus.scss');
                         _.stat.root.forEach(function(item){
                             _.dom.querySelector('.comment-list').appendChild(_.dom.querySelector('#comment-' + item));
                         })
-                    } else {
-                        loadmore.addEventListener('click', _.handle.loadMore, false);
-                        _.addAllListeners();
-                    }
+                    } 
                     if ( data.cursor.hasNext ){
                         _.stat.next = data.cursor.next;
                         loadmore.classList.remove('loading');
+                        loadmore.classList.remove('hide');
                     } else {
                         _.stat.next = null;
                         loadmore.classList.add('hide');
                     }
 
-                    if(_.forum.settings.organicDiscoveryEnabled){
-                        _.related();
-                    }
-
-                    if (posts.length == 0) {
+                    if( _.stat.thread.posts == 0 ){
+                        _.dom.querySelector('.comment-list').dataset.tips = '来做第一个留言的人吧！';
                         return;
                     }
 
-                    window.scrollTo(0, _.stat.offsetTop);
-
+                    if(posts.length == 0){
+                        return;
+                    }
                     _.timeAgo();
 
+                    var iframe =_.dom.querySelectorAll('.comment-item-body iframe');
+                    [].forEach.call(iframe, function(item){
+                        item.style.width = item.clientWidth + 'px';
+                        item.style.height = item.clientWidth * 9 / 16 + 'px';
+                        setTimeout(function(){
+                            item.src = item.src;
+                        },1000)
+                    })
+                    var tweet =_.dom.querySelectorAll('.comment-item-body .twitter-tweet');
+                    if( tweet.length > 0 ){
+                        var head= document.getElementsByTagName('head')[0]; 
+                        var script= document.createElement('script'); 
+                        script.type= 'text/javascript'; 
+                        script.src= '//platform.twitter.com/widgets.js'; 
+                        head.appendChild(script);
+                    }
+
+                    window.scrollTo(0, _.stat.offsetTop);
 
                     if (/^#disqus|^#comment-/.test(location.hash) && !data.cursor.hasPrev && !_.stat.disqusLoaded && !_.stat.loaded) {
                         var el = _.dom.querySelector('#idisqus ' + location.hash)
@@ -771,9 +941,7 @@ require('./iDisqus.scss');
                     }
                     _.stat.loading = false;
                     _.stat.loaded = true;
-                } else if ( data.code === 2 ){
-                    _.create();
-                }
+                } 
             },function(){
                 alert('获取数据失败，请检查服务器设置。')
             }
@@ -784,6 +952,8 @@ require('./iDisqus.scss');
     iDisqus.prototype.load = function(post){
 
         var _ = this;
+
+        _.stat.post[post.id] = post;
 
         var parentPostDom = _.dom.querySelector('.comment-item[data-id="'+post.parent+'"]');
 
@@ -797,7 +967,7 @@ require('./iDisqus.scss');
         }
         
         var parentPost = !!post.parent ? {
-            name: '<a class="comment-item-pname" href="#'+parentPostDom.id+'"><svg class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200"><path d="M1.664 902.144s97.92-557.888 596.352-557.888V129.728L1024 515.84l-425.984 360.448V628.8c-270.464 0-455.232 23.872-596.352 273.28"></path></svg>' + parentPostDom.dataset.name + '</a>',
+            name: `<a class="comment-item-pname" data-parent="${post.parent}" href="#${parentPostDom.id}"><svg class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200"><path d="M1.664 902.144s97.92-557.888 596.352-557.888V129.728L1024 515.84l-425.984 360.448V628.8c-270.464 0-455.232 23.872-596.352 273.28"></path></svg>${parentPostDom.dataset.name}</a>`,
             dom: parentPostDom.querySelector('.comment-item-children'),
             insert: 'afterbegin'
         } : {
@@ -806,35 +976,26 @@ require('./iDisqus.scss');
             insert: post.id == 'preview' || !!post.isPost ? 'afterbegin' : 'beforeend'
         };
 
-        var mediaHTML = '';
-        if( post.media.length == 1 ){
-            mediaHTML = '<div class="comment-item-images"><a class="comment-item-image" target="_blank" href="' + post.media[0] + '" style="background-image: url('+post.media[0]+');width: 167px;height: 167px"></a></div>';
-        } else if( post.media.length > 1 ){
-            post.media.forEach(function(item){
-                mediaHTML += '<a class="comment-item-image" target="_blank" href="' + item + '" style="background-image: url('+item+')"></a>';
-            })
-            mediaHTML = '<div class="comment-item-images">' + mediaHTML + '</div>';
-        }
 
-        var html = '<li class="comment-item" data-id="' + post.id + '" data-name="'+ post.name + '" id="comment-' + post.id + '">' +
-            '<div class="comment-item-body">'+
-            '<a class="comment-item-avatar" href="#comment-'+post.id+'"><img src="' + post.avatar + '"></a>'+
-            '<div class="comment-item-main">'+
-            '<div class="comment-item-header"><a class="comment-item-name" title="' + post.name + '" rel="nofollow" target="_blank" href="' + ( post.url ? post.url : 'javascript:;' ) + '">' + post.name + '</a>'+ (post.isMod ?'<span class="comment-item-badge">'+_.opts.badge+'</span>' :'')+parentPost.name+'<span class="comment-item-bullet"> • </span><time class="comment-item-time" datetime="' + post.createdAt + '"></time></div>'+
-            '<div class="comment-item-content">' + post.message + mediaHTML + '</div>'+
-            '<div class="comment-item-footer">' + (!!post.isPost ? '<span class="comment-item-manage"><a class="comment-item-edit" href="javascript:;">编辑</a><span class="comment-item-bullet"> • </span><a class="comment-item-delete" href="javascript:;">删除</a><span class="comment-item-bullet"> • </span></span>' : '') + '<a class="comment-item-reply" href="javascript:;">回复</a> </div>'+
-            '</div></div>'+
-            '<ul class="comment-item-children"></ul>'+
-            '</li>';
+        var html = `<li class="comment-item" data-id="${ post.id }" data-name="${ post.name }" id="comment-${ post.id }">
+        <div class="comment-item-body">
+        <a class="comment-item-avatar" href="#comment-${ post.id }"><img src="${ post.avatar }"></a>
+        <div class="comment-item-main">
+        <div class="comment-item-header"><a class="comment-item-name" title="${ post.name }" rel="nofollow" target="_blank" href="${(post.url || 'javascript:;')}">${ post.name }</a>${( post.isMod ? `<span class="comment-item-badge">${_.opts.badge}</span>` : ``)}${ parentPost.name }<span class="comment-item-bullet"> • </span><time class="comment-item-time" datetime="${ post.createdAt }"></time></div>
+        <div class="comment-item-content">${ post.message }</div>
+        <div class="comment-item-footer">${!!post.isPost ? `<span class="comment-item-manage"><a class="comment-item-edit" href="javascript:;">编辑</a><span class="comment-item-bullet"> • </span><a class="comment-item-delete" href="javascript:;">删除</a><span class="comment-item-bullet"> • </span></span>` : ``}<a class="comment-item-reply" href="javascript:;">回复</a></div>
+        </div></div>
+        <ul class="comment-item-children"></ul>
+        </li>`;
 
         // 已删除评论
         if(!!post.isDeleted){
-            html = '<li class="comment-item" data-id="' + post.id + '" id="comment-' + post.id + '" data-name="已删除">' +
-                '<div class="comment-item-body">'+
-                '<a class="comment-item-avatar" href="#comment-'+post.id+'"><img src="' + post.avatar + '"></a>'+
-                '<div class="comment-item-main" data-message="此评论已被删除。"></div></div>'+
-                '<ul class="comment-item-children"></ul>'+
-                '</li>';
+            html = `<li class="comment-item" data-id="${ post.id }" id="comment-${ post.id }" data-name="${ post.name }">
+            <div class="comment-item-body">
+            <a class="comment-item-avatar" href="#comment-${ post.id }"><img src="${ post.avatar }"></a>
+            <div class="comment-item-main" data-message="此评论已被删除。"></div></div>
+            <ul class="comment-item-children"></ul>
+            </li>`;
         }
 
 
@@ -843,14 +1004,6 @@ require('./iDisqus.scss');
             _.dom.querySelector('.comment-item[data-id="' + post.id + '"]').outerHTML = html;
         } else {
             parentPost.dom.insertAdjacentHTML(parentPost.insert, html);
-        }
-
-        if(!post.isDeleted){
-            _.dom.querySelector('.comment-item[data-id="' + post.id + '"] .comment-item-reply').addEventListener('click', _.handle.show, false);
-            _.dom.querySelector('.comment-item[data-id="' + post.id + '"] .comment-item-avatar').addEventListener('click', _.handle.jump, false);
-            if( !!post.parent ) {
-                _.dom.querySelector('.comment-item[data-id="' + post.id + '"] .comment-item-pname').addEventListener('click', _.handle.jump, false);
-            }
         }
 
         // 发布留言，可编辑删除
@@ -862,7 +1015,7 @@ require('./iDisqus.scss');
                 if(!!$this.querySelector('.comment-item-manage')){
                     $this.querySelector('.comment-item-manage').outerHTML = '';
                 }
-            }, 600000);
+            }, 6*1e5);
 
             // 删除
             $this.querySelector('.comment-item-delete').addEventListener('click',function(e){
@@ -899,18 +1052,18 @@ require('./iDisqus.scss');
     }
 
     // 读取更多
-    iDisqus.prototype.loadMore = function(e){
+    iDisqus.prototype.loadMore = function(e, target){
         var _ = this;
         _.stat.offsetTop = d.documentElement.scrollTop || d.body.scrollTop;
         if( !_.stat.loading ){
-            e.currentTarget.classList.add('loading');
+            target.classList.add('loading');
             _.getlist();
         }
     }
 
     // 评论框焦点
-    iDisqus.prototype.focus = function(e){
-        var wrapper = e.currentTarget.closest('.comment-form-wrapper');
+    iDisqus.prototype.focus = function(e, target){
+        var wrapper = target.closest('.comment-form-wrapper');
         wrapper.classList.add('editing');
         if (wrapper.classList.contains('focus')){
             wrapper.classList.remove('focus');
@@ -920,73 +1073,90 @@ require('./iDisqus.scss');
     }
 
     // 输入事件
-    iDisqus.prototype.input = function(e){
-        var form = e.currentTarget.closest('.comment-form');
+    iDisqus.prototype.input = function(e, target){
+        var _ = this;
+        var form = target.closest('.comment-form');
         var alertmsg = form.querySelector('.comment-form-alert');
         alertmsg.innerHTML = '';
+        var wrapper = form.querySelector('.comment-form-wrapper');
+        var filterText = target.value.replace(/<code>.*?<\/code>/g,'');
+        var urls = filterText.match(/(^|\s|\r|\n)*(http:\/\/|https:\/\/)(\w|-|\.)*(disqus|sinaimg|giphy|imgur|instagram|twimg|twitter|youtube|youtu\.be)((\w|=|\?|\.|\/|&|\%|-)*)(jpg|png|gif|gallery\/\w+|p\/[a-zA-Z0-9]{11}.*|status\/\d{19}|v=[a-zA-Z0-9]{11}|\/[a-zA-Z0-9]{11})(\s|$|\n)/g);
+        form.querySelector('.comment-image-list').innerHTML = '';
+        if(!!urls){
+            urls.forEach(function(item, i){
+                item = item.replace('/\n|\r\n|^\s|\s$/g','');
+                var image = _.stat.media[item];
+                if(!!image){
+                    var imageHtml = `<li class="comment-image-item" data-image-url="${image.thumbnailUrl}"><img class="comment-image-object" src="https:${image.thumbnailUrl}"></li>`;
+                    form.querySelector('.comment-image-list').insertAdjacentHTML('beforeend', imageHtml);
+                    wrapper.classList.add('expanded');
+                    return;
+                }
+                postAjax( _.opts.api + '/media.php', {url: item}, function(resp){
+                    var data = JSON.parse(resp);
+                    if(data.code == 0){
+                        image = data.response;
+                        var imageHtml = `<li class="comment-image-item" data-image-url="${image.thumbnailUrl}"><img class="comment-image-object" src="https:${image.thumbnailUrl}"></li>`;
+                        form.querySelector('.comment-image-list').insertAdjacentHTML('beforeend', imageHtml);
+                        _.stat.media[item] = image;
+                        wrapper.classList.add('expanded');
+                    }
+                }, function(){
+                })
+            })
+        } else {
+            wrapper.classList.remove('expanded');
+        }
+
     }
 
     // 提醒用户 @ mention 
-    iDisqus.prototype.mention = function(e){
+    iDisqus.prototype.mention = function(e, target){
         var _ = this;
-        var textarea = e.currentTarget;
+        var textarea = target;
         var selStart = textarea.selectionStart;
         var mentionIndex = textarea.value.slice(0, selStart).lastIndexOf('@');
         var mentionText = textarea.value.slice(mentionIndex, selStart);
         var mentionDom = _.dom.querySelector('.mention-user');
-        if(mentionText.search(/^@\w+$|^@$/) == 0){
+        var showUsers = _.stat.users.filter(function(user){
+            var re = new RegExp(mentionText.slice(1), 'i');
+            return user.username.search(re) > -1;
+        });
+        if(mentionText.search(/^@\w+$|^@$/) == 0 && showUsers.length > 0){
             if( e.keyCode == 38 || e.keyCode == 40){
                 return;
             }
-            var showUsers = _.stat.users.filter(function(user){
-                var re = new RegExp(mentionText.slice(1), 'i');
-                return user.username.search(re) > -1;
-            });
             var coord = _.getCaretCoord(textarea);
             var list='', html = '';
 
-            if( showUsers.length > 0){
-                showUsers.forEach(function(item, i){
-                    list += '<li class="mention-user-item'+(i == 0 ? ' active' : '')+'" data-username="'+item.username+'"><img class="mention-user-avatar" src="'+item.avatar+'"><div class="mention-user-username">'+item.username+'</div><div class="mention-user-name">'+item.name+'</div></li>';
-                })
-                if(!!mentionDom){
-                    mentionDom.innerHTML = '<ul class="mention-user-list">'+list+'</ul>';
-                    mentionDom.style.left = coord.left + 'px';
-                    mentionDom.style.top = coord.top + 'px';
-                } else {
-                    html = '<div class="mention-user" style="left:'+coord.left+'px;top:'+coord.top+'px"><ul class="mention-user-list">'+list+'</ul></div>';
-                    _.dom.querySelector('#idisqus').insertAdjacentHTML('beforeend', html);
-                }
-
-                // 鼠标悬浮
-                _.addListener('mention-user-item', 'mouseover', function(){
-                    _.dom.querySelector('.mention-user-item.active').classList.remove('active');
-                    this.classList.add('active');
-                })
-
-                // 鼠标点击
-                _.addListener('mention-user-item', 'click', function(){
-                    var username = '@' + this.dataset.username + ' ';
-                    textarea.value = textarea.value.slice(0, mentionIndex) + username + textarea.value.slice(selStart);
-                    _.dom.querySelector('.mention-user').outerHTML = '';
-                    textarea.focus();
-                    textarea.setSelectionRange(mentionIndex + username.length, mentionIndex + username.length)
-                    textarea.removeEventListener('keydown', _.handle.keySelect, false);
-                })
-
-                // 键盘事件
-                textarea.addEventListener('keydown', _.handle.keySelect, false);
-            } else{
-                if(!!mentionDom){
-                    mentionDom.outerHTML = '';
-                    textarea.removeEventListener('keydown', _.handle.keySelect, false);
-                }
-            }
-        } else {
+            showUsers.forEach(function(item, i){
+                list += `<li class="mention-user-item${(i == 0 ? ' active' : '')}" data-username="${ item.username }"><img class="mention-user-avatar" src="${ item.avatar }"><div class="mention-user-username">${ item.username }</div><div class="mention-user-name">${ item.name }</div></li>`;
+            })
             if(!!mentionDom){
-                mentionDom.outerHTML = '';
-                textarea.removeEventListener('keydown', _.handle.keySelect, false);
+                mentionDom.innerHTML = '<ul class="mention-user-list">'+list+'</ul>';
+                mentionDom.style.left = coord.left + 'px';
+                mentionDom.style.top = coord.top + 'px';
+            } else {
+                html = `<div class="mention-user" style="left:${ coord.left }px;top:${ coord.top }px"><ul class="mention-user-list">${list}</ul></div>`;
+                _.dom.querySelector('#idisqus').insertAdjacentHTML('beforeend', html);
             }
+
+            // 鼠标悬浮
+            _.addListener('mention-user-item', 'mouseover', function(){
+                _.dom.querySelector('.mention-user-item.active').classList.remove('active');
+                this.classList.add('active');
+            })
+
+            // 鼠标点击
+            _.addListener('mention-user-item', 'click', function(){
+                var username = '@' + this.dataset.username + ' ';
+                textarea.value = textarea.value.slice(0, mentionIndex) + username + textarea.value.slice(selStart);
+                mentionDom.outerHTML = '';
+                textarea.focus();
+                textarea.setSelectionRange(mentionIndex + username.length, mentionIndex + username.length)
+            })
+        } else if(!!mentionDom){
+            mentionDom.outerHTML = '';
         }
     }
 
@@ -1014,13 +1184,16 @@ require('./iDisqus.scss');
     }
 
     // 键盘选择用户
-    iDisqus.prototype.keySelect = function(e){
+    iDisqus.prototype.keySelect = function(e,target){
         var _ = this;
-        var textarea = e.currentTarget;
+        var textarea = target;
         var selStart = textarea.selectionStart;
         var mentionIndex = textarea.value.slice(0, selStart).lastIndexOf('@');
         var mentionText = textarea.value.slice(mentionIndex, selStart);
         var mentionDom = _.dom.querySelector('.mention-user');
+        if( !mentionDom ){
+            return;
+        }
         var current = _.dom.querySelector('.mention-user-item.active')
         switch(e.keyCode){
             case 13:
@@ -1029,7 +1202,6 @@ require('./iDisqus.scss');
                 textarea.value = textarea.value.slice(0, mentionIndex) + username + textarea.value.slice(selStart);
                 textarea.setSelectionRange(mentionIndex + username.length, mentionIndex + username.length)
                 _.dom.querySelector('.mention-user').outerHTML = '';
-                textarea.removeEventListener('keydown', _.handle.keySelect, false);
                 e.preventDefault();
                 break;
             case 38:
@@ -1054,33 +1226,44 @@ require('./iDisqus.scss');
     }
 
     // 跳到评论
-    iDisqus.prototype.jump = function(e){
+    iDisqus.prototype.jump = function(e, target){
         var _ = this;
-        var $this = e.currentTarget;
-        var hash = getLocation($this.href).hash;
+        var hash = getLocation(target.href).hash;
         var el = _.dom.querySelector('#idisqus ' + hash);
         history.replaceState(undefined, undefined, hash);
         window.scrollBy(0, el.getBoundingClientRect().top);
         e.preventDefault();
     }
 
+    // 显示父评论
+    iDisqus.prototype.parentShow = function(e, target){
+        var _ = this;
+        if(!!target.querySelector('.comment-item-parent')){
+            return;
+        }
+        var comment = _.stat.post[target.dataset.parent];
+        if( comment.isDeleted ){
+            return;
+        }
+        var message = comment.message.replace(/<[^>]*>/g, '');
+        var parentHtml = `<div class="comment-item-parent"><a class="comment-item-avatar" href="javascript:;"><img src="${comment.avatar}"></a><div class="comment-item-pmain"><div class="comment-item-pheader">${comment.name}</div><div class="comment-item-pcontent" title="${ message }">${ message }</div></div></div>`;
+        target.insertAdjacentHTML('beforeend', parentHtml);
+    }
+
     // 点选表情
-    iDisqus.prototype.field = function(e){
-        var item = e.currentTarget;
+    iDisqus.prototype.field = function(e, target){
+        var _ = this;
+        var item = target;
         var form = item.closest('.comment-form');
         var textarea = form.querySelector('.comment-form-textarea');
-        var selStart = textarea.selectionStart;
-        var shortCode = selStart == 0 ? item.dataset.code + ' ' : ' ' + item.dataset.code + ' '
-        textarea.value = textarea.value.slice(0, selStart) + shortCode + textarea.value.slice(selStart) 
-        textarea.focus();
-        textarea.setSelectionRange(selStart + shortCode.length, selStart + shortCode.length);
+        _.appendText(textarea, item.dataset.code);
     }
 
     // 显示回复框 or 取消回复框
-    iDisqus.prototype.show = function(e){
+    iDisqus.prototype.show = function(e, target){
         var _ = this;
 
-        var $this = e.currentTarget;
+        var $this = target;
         var item = $this.closest('.comment-item');
 
         // 无论取消还是回复，移除已显示回复框
@@ -1099,20 +1282,15 @@ require('./iDisqus.scss');
             item.querySelector('.comment-item-children').insertAdjacentHTML('beforebegin', commentBox);
             _.user.init();
 
-            _.addAllListeners();
             item.querySelector('.comment-form-textarea').focus();
         }
-
-        // 监听事件
-        _.addListener('comment-item-reply', 'click', _.handle.show);
-        _.addListener('comment-item-cancel', 'click', _.handle.show);
 
     }
 
     // 验证表单
-    iDisqus.prototype.verify = function(e){
+    iDisqus.prototype.verify = function(e, target){
         var _ = this;
-        var $this = e.currentTarget;
+        var $this = target;
         var box  = $this.closest('.comment-box');
         var $avatar = box.querySelector('.comment-avatar-image');
         var $name = box.querySelector('.comment-form-name');
@@ -1136,10 +1314,20 @@ require('./iDisqus.scss');
         );
     }
 
-    // 上传图片
-    iDisqus.prototype.upload = function(e){
+    // 添加文本
+    iDisqus.prototype.appendText = function(textarea, text){
         var _ = this;
-        var file = e.currentTarget;
+        var selStart = textarea.selectionStart;
+        var text = selStart == 0 ? text + ' ' : ' ' + text + ' ';
+        textarea.value = textarea.value.slice(0, selStart) + text + textarea.value.slice(selStart);
+        textarea.focus();
+        textarea.setSelectionRange(selStart + text.length, selStart + text.length);
+    }
+
+    // 上传图片
+    iDisqus.prototype.upload = function(e, target){
+        var _ = this;
+        var file = target;
         var form = file.closest('.comment-form');
         var progress = form.querySelector('.comment-image-progress');
         var loaded = form.querySelector('.comment-image-loaded');
@@ -1153,7 +1341,7 @@ require('./iDisqus.scss');
         // 以文件大小识别是否为同张图片
         var size = file.files[0].size;
 
-        if( size > 5000000 ){
+        if( size > 5*1e6 ){
             alertmsg.innerHTML = '请选择 5M 以下图片。';
             setTimeout(function(){
                 alertmsg.innerHTML = '';
@@ -1189,13 +1377,15 @@ require('./iDisqus.scss');
                 if( data.code == 0 ){
                     _.stat.imageSize.push(size);
                     var imageUrl = data.response[filename].url;
+                    var textarea = form.querySelector('.comment-form-textarea');
+                    _.appendText(textarea, imageUrl);
+
                     var image = new Image();
                     image.src = imageUrl;
                     image.onload = function(){
                         $item.innerHTML = '<img class="comment-image-object" src="'+imageUrl+'">';
                         $item.dataset.imageUrl = imageUrl;
                         $item.classList.remove('loading');
-                        $item.addEventListener('click', _.handle.remove, false);
                     }
                 } else {
                     alertmsg.innerHTML = '图片上传出错。';
@@ -1215,26 +1405,25 @@ require('./iDisqus.scss');
         xhrUpload.upload.addEventListener('load', function(e){
             loaded.style.width = 0;
             progress.style.width = 0;
-            var imageItem = '<li class="comment-image-item loading" data-image-size="' + size + '">\n'+
-                '    <svg version="1.1" class="comment-image-object" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"\n'+
-                '        width="24px" height="30px" viewBox="0 0 24 30" style="enable-background: new 0 0 50 50;" xml:space="preserve">\n'+
-                '        <rect x="0" y="10" width="4" height="10" fill="rgba(127,145,158,1)" opacity="0.2">\n'+
-                '            <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0s" dur="0.6s" repeatCount="indefinite" />\n'+
-                '            <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0s" dur="0.6s" repeatCount="indefinite" />\n'+
-                '            <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0s" dur="0.6s" repeatCount="indefinite" />\n'+
-                '        </rect>\n'+
-                '        <rect x="8" y="10" width="4" height="10" fill="rgba(127,145,158,1)" opacity="0.2">\n'+
-                '            <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0.15s" dur="0.6s" repeatCount="indefinite" />\n'+
-                '            <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0.15s" dur="0.6s" repeatCount="indefinite" />\n'+
-                '            <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0.15s" dur="0.6s" repeatCount="indefinite" />\n'+
-                '        </rect>\n'+
-                '        <rect x="16" y="10" width="4" height="10" fill="rgba(127,145,158,1)" opacity="0.2">\n'+
-                '            <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0.3s" dur="0.6s" repeatCount="indefinite" />\n'+
-                '            <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0.3s" dur="0.6s" repeatCount="indefinite" />\n'+
-                '            <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0.3s" dur="0.6s" repeatCount="indefinite" />\n'+
-                '        </rect>\n'+
-                '    </svg>\n'+
-                '</li>\n';
+            var imageItem = `<li class="comment-image-item loading" data-image-size="${ size }">
+            <svg version="1.1" class="comment-image-object" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="24px" height="30px" viewBox="0 0 24 30" style="enable-background: new 0 0 50 50;" xml:space="preserve">
+            <rect x="0" y="10" width="4" height="10" fill="rgba(127,145,158,1)" opacity="0.2">
+            <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0s" dur="0.6s" repeatCount="indefinite" />
+            <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0s" dur="0.6s" repeatCount="indefinite" />
+            <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0s" dur="0.6s" repeatCount="indefinite" />
+            </rect>
+            <rect x="8" y="10" width="4" height="10" fill="rgba(127,145,158,1)" opacity="0.2">
+            <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
+            <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
+            <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
+            </rect>
+            <rect x="16" y="10" width="4" height="10" fill="rgba(127,145,158,1)" opacity="0.2">
+            <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
+            <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
+            <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
+            </rect>
+            </svg>
+            </li>`;
             form.querySelector('.comment-image-list').insertAdjacentHTML('beforeend', imageItem);
             $item = form.querySelector('[data-image-size="'+size+'"]');
         }, false);
@@ -1283,31 +1472,18 @@ require('./iDisqus.scss');
     }
 
     // 发表/回复评论
-    iDisqus.prototype.post = function(e){
+    iDisqus.prototype.post = function(e, target){
         var _ = this;
-        var item =  e.currentTarget.closest('.comment-box[data-current-id]') || e.currentTarget.closest('.comment-item') || e.currentTarget.closest('.comment-box');
+        var item =  target.closest('.comment-box[data-current-id]') || target.closest('.comment-item') || target.closest('.comment-box');
         var message = item.querySelector('.comment-form-textarea').value;
         var parentId = !!item.dataset.id ? item.dataset.id : '';
         var imgArr = item.getElementsByClassName('comment-image-item');
-        var media = [];
-        var mediaStr = '';
-        [].forEach.call(imgArr, function(image,i){
-            media[i] = image.dataset.imageUrl;
-            mediaStr += ' ' + image.dataset.imageUrl;
-        });
 
         // 不是编辑框需预览
         if( !item.dataset.currentId ){
             var elName = item.querySelector('.comment-form-name');
             var elEmail = item.querySelector('.comment-form-email');
             var elUrl = item.querySelector('.comment-form-url');
-            var user = {
-                name: elName.value,
-                email: elEmail.value,
-                url: elUrl.value.replace(/\s/g,''),
-                avatar: item.querySelector('.comment-avatar-image').src,
-                type: 0
-            }
             var alertmsg = item.querySelector('.comment-form-alert');
             var alertClear = function() {
                 setTimeout(function(){
@@ -1316,23 +1492,31 @@ require('./iDisqus.scss');
             }
 
             if(_.user.type != '1'){
-                if(/^\s*$/i.test(user.name)){
-                    _.errorTips('名字不能为空。', elName);
+                var anonName = elName.value;
+                var anonEmail = elEmail.value;
+                var anonUrl = elUrl.value.replace(/\s/g,'');
+                if(/^\s*$/i.test(anonName)){
+                    _.errorTips('名字不能为空或空格。', elName);
                     return;
                 }
-                if(/^\s*$/i.test(user.email)){
-                    _.errorTips('邮箱不能为空。', elEmail);
+                if(/^\s*$/i.test(anonEmail)){
+                    _.errorTips('邮箱不能为空或空格。', elEmail);
                     return;
                 }
-                if(!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(user.email)){
+                if(!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(anonEmail)){
                     _.errorTips('请正确填写邮箱。', elEmail);
                     return;
                 }
-                if(!/^([hH][tT]{2}[pP]:\/\/|[hH][tT]{2}[pP][sS]:\/\/)(([A-Za-z0-9-~]+)\.)+([A-Za-z0-9-~\/])+$|^\s*$/i.test(user.url)){
+                if(!/^([hH][tT]{2}[pP]:\/\/|[hH][tT]{2}[pP][sS]:\/\/)(([A-Za-z0-9-~]+)\.)+([A-Za-z0-9-~\/])+$|^\s*$/i.test(anonUrl)){
                     _.errorTips('请正确填写网址。', elUrl);
                     return;
                 }
-                _.user.submit(user);
+                _.user.unique = _.user.email == anonEmail ? _.user.unique : generateGUID();
+                _.user.name = anonName;
+                _.user.email = anonEmail;
+                _.user.url = anonUrl;
+                _.user.avatar = item.querySelector('.comment-avatar-image').src;
+                _.user.submit();
 
                 if( !_.user.name && !_.user.email ){
                     return;
@@ -1340,10 +1524,10 @@ require('./iDisqus.scss');
             }
 
             if(!_.stat.message && !_.stat.mediaHtml){
-                _.box = _.dom.querySelector('.comment-box').outerHTML.replace(/<label class="comment-actions-label exit"(.|\n)*<\/label>\n/,'').replace('comment-form-wrapper','comment-form-wrapper editing').replace(/加入讨论……/,'');
+                _.box = _.dom.querySelector('.comment-box').outerHTML.replace('comment-form-wrapper','comment-form-wrapper editing').replace(/加入讨论……/,'');
             }
 
-            if( media.length == 0 && /^\s*$/i.test(message)){
+            if( /^\s*$/i.test(message)){
                 alertmsg.innerHTML = '评论不能为空或空格。';
                 item.querySelector('.comment-form-textarea').focus();
                 return;
@@ -1354,12 +1538,12 @@ require('./iDisqus.scss');
             if( !!_.opts.emoji_preview ){
                 preMessage = preMessage.replace(/:([-+\w]+):/g, function (match){
                     var emojiShort = match.replace(/:/g,'');
-                    var emojiImage = !!_.eac[emojiShort] ? '<img class="emojione" width="24" height="24" alt="'+emojiShort+'" title=":'+emojiShort+':" src="'+_.opts.emojiPath +_.eac[emojiShort]+'.png">' : match;
+                    var emojiImage = !!_.eac[emojiShort] ? `<img class="emojione" width="24" height="24" alt="'+emojiShort+'" title=":${emojiShort}:" src="${_.opts.emojiPath +_.eac[emojiShort]}.png">` : match;
                     return emojiImage;
                 });
             } else {
                 _.emojiList.forEach(function(item){
-                    preMessage = preMessage.replace(':'+item.code+':', '<img class="emojione" width="24" height="24" src="' + _.opts.emojiPath + item.unicode + '.png" />');
+                    preMessage = preMessage.replace(`:${item.code}:`, `<img class="emojione" width="24" height="24" src="${ _.opts.emojiPath + item.unicode }.png" />`);
                 });
             }
 
@@ -1373,7 +1557,6 @@ require('./iDisqus.scss');
                 'parent': parentId,
                 'createdAt': (new Date()).toJSON(),
                 'message': '<p>' + preMessage + '</p>',
-                'media': media
             };
 
             _.load(post);
@@ -1405,15 +1588,13 @@ require('./iDisqus.scss');
             }
         }
 
-        // 文本 + 图片
-        message += mediaStr;
-
         // POST 操作
         // 编辑框则更新评论
         if( !!item.dataset.currentId ){
             var postData = {
                 id: item.dataset.currentId,
                 message: message,
+                unique: _.user.unique
             }
             postAjax( _.opts.api + '/updatecomment.php', postData, function(resp){
                 var data = JSON.parse(resp);
@@ -1444,24 +1625,25 @@ require('./iDisqus.scss');
                 name: _.user.name,
                 email: _.user.email,
                 url:  _.user.url,
+                unique:  _.user.unique
             }
             postAjax( _.opts.api + '/postcomment.php', postData, function(resp){
                 var data = JSON.parse(resp);
                 if (data.code === 0) {
                     _.dom.querySelector('.comment-item[data-id="preview"]').outerHTML = '';
-                    _.stat.total += 1;
-                    _.dom.querySelector('#comment-count').innerHTML = _.stat.total + ' 条评论';
+                    _.stat.thread = data.thread;
+                    _.dom.querySelector('#comment-count').innerHTML = _.stat.thread.posts + ' 条评论';
                     var post = data.response;
                     post.isPost = true;
                     _.load(post);
                     _.timeAgo();
+                    var postData = {
+                        post: JSON.stringify(post),
+                        thread: JSON.stringify(_.stat.thread),
+                        parent: JSON.stringify(_.stat.post[parentId]),
+                        code: data.verifyCode
+                    }
                     if(!!data.verifyCode){
-                        var postData = {
-                            post: JSON.stringify(post),
-                            thread: JSON.stringify(data.thread),
-                            parent: JSON.stringify(data.parent),
-                            code: data.verifyCode
-                        }
                         // 异步发送邮件
                         postAjax( _.opts.api + '/sendemail.php', postData, function(resp){
                             console.info('邮件发送成功！');
@@ -1510,7 +1692,6 @@ require('./iDisqus.scss');
         if(!!_.stat.mediaHtml){
             item.querySelector('.comment-form-wrapper').classList.add('expanded');
             item.querySelector('.comment-image-list').innerHTML = _.stat.mediaHtml;
-            _.addListener('comment-image-item', 'click', _.handle.remove);
         }
     }
 
@@ -1523,7 +1704,6 @@ require('./iDisqus.scss');
         _.user.init();
         var item = _.dom.querySelector('.comment-box-' + post.id);
         item.dataset.currentId = post.id;
-        _.addAllListeners();
         item.querySelector('.comment-form-textarea').focus();
 
         // 取消编辑
@@ -1541,43 +1721,120 @@ require('./iDisqus.scss');
         if(!!_.stat.mediaHtml){
             item.querySelector('.comment-form-wrapper').classList.add('expanded');
             item.querySelector('.comment-image-list').innerHTML = _.stat.mediaHtml;
-            _.addListener('comment-image-item', 'click', _.handle.remove);
         }
 
     }
 
-    // 创建 Thread 表单
-    iDisqus.prototype.create = function(){
+    // Thread 初始化
+    iDisqus.prototype.threadInit = function(e, target){
         var _ = this;
-        if(_.opts.autoCreate){
-            _.dom.querySelector('.loading-container').dataset.tip = '正在创建 Thread……';
-            var postData = {
-                url: _.opts.link,
-                identifier: _.opts.identifier,
-                title: _.opts.title,
-                slug: _.opts.slug,
-                message: _.opts.desc
+        _.dom.querySelector('#idisqus').style.display = 'block';
+        _.dom.querySelector('#disqus_thread').style.display = 'none';
+        getAjax( _.opts.api + '/threadsDetails.php?ident=' + _.opts.identifier + '&link=' + _.opts.url , function(resp){
+            var data  = JSON.parse(resp);
+            if( data.code == 0){
+                _.stat.thread = data.response;
+                _.stat.forum = data.forum;
+                _.dom.querySelector('#comment-link').href = `https://disqus.com/home/discussion/${_.stat.forum.id}/${_.stat.thread.slug}/?l=zh`;
+                _.dom.querySelector('.comment-avatar-image').dataset.avatar = _.stat.forum.avatar;
+                _.dom.querySelector('.comment-recommend-count').innerHTML = _.stat.thread.likes || '';
+                if( _.user.logged_in == 'false' ){
+                    _.dom.querySelector('.comment-avatar-image').src = _.stat.forum.avatar;
+                }
+                _.opts.badge =  _.stat.forum.moderatorBadgeText;
+                if( !_.stat.order ){
+                    switch( _.stat.forum.order ){
+                        case 1:
+                            _.stat.order = 'asc';
+                            break;
+                        case 2:
+                            _.stat.order = 'desc';
+                            break;
+                        case 4:
+                            _.stat.order = 'popular';
+                            break;
+                    }
+                }
+                _.dom.querySelector('.comment-order-radio[value="'+ _.stat.order +'"]').checked = true;
+                
+                var users = data.votedusers;
+                var vote = 0;
+                if( _.user.type == 1 ){
+                    // 已登录
+                    vote = users.filter(function(user){
+                        return user.username == _.user.username;
+                    }).length > 0 ? 1 : 0;
+                } else {
+                    // 未登录
+                    vote = !!_.user.vote[_.stat.thread.id] ? 1 : 0;;
+                }
+                _.user.vote[_.stat.thread.id] = vote;
+                l.setItem('vote', JSON.stringify(_.user.vote));
+                if( !!vote ){
+                    _.dom.querySelector('.comment-recommend').classList.add('voted');
+                    _.dom.querySelector('.comment-recommend-text').innerHTML = '已推荐';
+                }
+                _.dom.querySelector('#idisqus').classList.remove('init')
+                _.loadRelated();
+                _.loadReactions();
+                _.dom.querySelector('#comment-count').innerHTML = _.stat.thread.posts + ' 条评论';
+                _.getlist();
+            } else if ( data.code === 2 ){
+                    // 自动创建
+                    if(_.opts.autoCreate){
+                        _.dom.querySelector('.init-container').dataset.tips = '正在创建 Thread……';
+                        var postData = {
+                            url: _.opts.link,
+                            identifier: _.opts.identifier,
+                            title: _.opts.title,
+                            slug: _.opts.slug,
+                            message: _.opts.desc
+                        }
+                        _.threadCreate(postData);
+                        return;
+                    }
+                    _.dom.querySelector('#idisqus').classList.remove('init');
+                    var threadForm = `<div class="comment-header"><span class="comment-header-item">创建 Thread</span></div>
+                            <div class="comment-thread-form">
+                            <p>由于 Disqus 没有本页面的相关 Thread，故需先创建 Thread</p>
+                            <div class="comment-form-item"><label class="comment-form-label">url:</label><input class="comment-form-input" id="thread-url" name="url" value="${ _.opts.link }" disabled /></div>
+                            <div class="comment-form-item"><label class="comment-form-label">identifier:</label><input class="comment-form-input" id="thread-identifier" name="identifier" value="${ _.opts.identifier }" disabled /></div>
+                            <div class="comment-form-item"><label class="comment-form-label">title:</label><input class="comment-form-input" id="thread-title" name="title" value="${ _.opts.title }" disabled /></div>
+                            <div class="comment-form-item"><label class="comment-form-label">slug:</label><input class="comment-form-input" id="thread-slug" name="slug" value="${ _.opts.slug }" /></div>
+                            <div class="comment-form-item"><label class="comment-form-label">message:</label><textarea class="comment-form-textarea" id="thread-message" name="message">${ _.opts.desc }</textarea></div>
+                            <button id="thread-submit" class="comment-form-submit">提交</button></div>`;
+                    _.dom.querySelector('#idisqus').innerHTML = threadForm;
             }
-            _.postThread(postData);
-            return;
-        }
-        _.dom.querySelector('#idisqus').classList.remove('loading');
-        _.dom.querySelector('#idisqus').innerHTML  = '<div class="comment-header"><span class="comment-header-item">创建 Thread<\/span><\/div>'+
-            '<div class="comment-thread-form">'+
-            '<p>由于 Disqus 没有本页面的相关 Thread，故需先创建 Thread<\/p>'+
-            '<div class="comment-form-item"><label class="comment-form-label">url:<\/label><input class="comment-form-input" id="thread-url" name="url" value="' + _.opts.link + '" disabled \/><\/div>'+
-            '<div class="comment-form-item"><label class="comment-form-label">identifier:<\/label><input class="comment-form-input" id="thread-identifier" name="identifier" value="'+_.opts.identifier+'" disabled \/><\/div>'+
-            '<div class="comment-form-item"><label class="comment-form-label">title:<\/label><input class="comment-form-input" id="thread-title" name="title" value="'+_.opts.title+'" disabled \/><\/div>'+
-            '<div class="comment-form-item"><label class="comment-form-label">slug:<\/label><input class="comment-form-input" id="thread-slug" name="slug" value="' + _.opts.slug + '" \/><\/div>'+
-            '<div class="comment-form-item"><label class="comment-form-label">message:<\/label><textarea class="comment-form-textarea" id="thread-message" name="message">'+_.opts.desc+'<\/textarea><\/div>'+
-            '<button id="thread-submit" class="comment-form-submit">提交<\/button><\/div>';
-        _.dom.querySelector('#thread-submit').addEventListener('click', _.handle.postThread, false);
+        },function(){})
     }
 
-    // 创建 Thread 事件
-    iDisqus.prototype.postThread = function(){
+    // Thread 打分事件
+    iDisqus.prototype.threadVote = function(e, target){
         var _ = this;
-        if( !!arguments[0].target ){
+        var vote = !!_.user.vote[_.stat.thread.id] ? 0 : 1;
+        var postData = {
+            thread: _.stat.thread.id,
+            unique: _.user.unique,
+            vote: vote
+        }
+        postAjax( _.opts.api + '/threadsVote.php', postData, function(resp){
+            _.user.vote[_.stat.thread.id] = vote;
+            l.setItem('vote', JSON.stringify(_.user.vote));
+            if(!!vote){
+                _.dom.querySelector('.comment-recommend').classList.add('voted');
+                _.stat.thread.likes ++;
+            } else {
+                _.dom.querySelector('.comment-recommend').classList.remove('voted');
+               _.stat.thread.likes = _.stat.thread.likes == 0 ? 0 : _.stat.thread.likes - 1;
+            }
+            _.dom.querySelector('.comment-recommend-count').innerHTML = _.stat.thread.likes || '';
+        })
+    }
+
+    // Thread Create 事件
+    iDisqus.prototype.threadCreate = function(e, target){
+        var _ = this;
+        if( !!target ){
             var postData = {
                 url: _.dom.querySelector('#thread-url').value,
                 identifier: _.dom.querySelector('#thread-identifier').value,
@@ -1620,25 +1877,14 @@ require('./iDisqus.scss');
     // 销毁评论框
     iDisqus.prototype.destroy = function(){
         var _ = this;
-        _.removeListener('exit', 'click', _.handle.logout);
-        _.removeListener('comment-form-textarea', 'blur', _.handle.focus);
-        _.removeListener('comment-form-textarea', 'focus', _.handle.focus);
-        _.removeListener('comment-form-textarea', 'keyup', _.handle.mention);
-        _.removeListener('comment-form-name', 'blur', _.handle.verify);
-        _.removeListener('comment-form-email', 'blur', _.handle.verify);
-        _.removeListener('comment-form-submit', 'click', _.handle.post);
-        _.removeListener('comment-image-input', 'change', _.handle.upload);
-        _.removeListener('comment-item-reply', 'click', _.handle.show);
-        _.removeListener('comment-loadmore', 'click', _.handle.loadMore);
-        _.removeListener('emojione-item', 'click', _.handle.field);
         _.dom.innerHTML = '';
-        delete _.box;
         delete _.dom;
+        delete _.box;
         delete _.emojiList;
         delete _.user;
         delete _.handle;
-        delete _.opts;
         delete _.stat;
+        delete _.opts;
     }
 
     // reset DISQUS on AJAX sites
