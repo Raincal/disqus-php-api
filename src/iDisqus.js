@@ -686,6 +686,7 @@ require('./iDisqus.scss');
             s.dataset.timestamp = Date.now();
             s.onload = function(){
                 _.dom.querySelector('#idisqus').style.display = 'none';
+                _.dom.querySelector('#disqus_thread').style.display = 'block';
                 _.stat.disqusLoaded = true;
                 _tips = '连接成功，加载 Disqus 评论框……'
             } 
@@ -796,7 +797,7 @@ require('./iDisqus.scss');
                         </div></a>
                         </li>`;
                     });
-                    popHtml = `<div class="comment-related-title">在<span class="comment-related-forumname">${_.stat.forum.name}</span>上还有</div><div class="comment-related-content"><ul class="related-list">${popHtml}</ul></div>`;
+                    popHtml = `<div class="comment-related-title">在 <span class="comment-related-forumname">${_.stat.forum.name}</span> 上还有</div><div class="comment-related-content"><ul class="related-list">${popHtml}</ul></div>`;
                     _.dom.querySelector('.comment-related').innerHTML = popHtml;
                     _.timeAgo();
                 }
