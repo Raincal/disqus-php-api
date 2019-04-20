@@ -3,11 +3,10 @@
  * 配置文件
  *
  * @author   fooleap <fooleap@gmail.com>
- * @version  2018-09-08 13:38:39
+ * @version  2019-04-19 13:23:37
  * @link     https://github.com/fooleap/disqus-php-api
  *
  */
-
 /*
  * Disqus 设置
  *
@@ -21,11 +20,14 @@
  * DISQUS_SHORTNAME 网站在 Disqus 对应的 shortname
  * DISQUS_APPROVED  评论是否免审核，true 即跳过评论预审核，false 则按后台设置
  * DISQUS_BLACKLIST 评论发表应用官方的 IP 黑名单，true 即启用，false 则跳过
+ * MOD_IDENT        识别管理员：1. username 等于 DISQUS_USERNAME，即和原生评论框一样
+ *                              2. 匿名评论 name 等于 DISQUS_USERNAME 且 email 等于 DISQUS_EMAIL
+ *                              3. 匿名评论 name 等于 DISQUS_USERNAME 或 email 等于 DISQUS_EMAIL
+ * USE_TEMP         缓存目录，false 或无定义，则是当前目录下的 cache 目录，否则采用系统临时文件目录
  *
  * 填写正确的账号信息之后，将以网站管理员的身份去获取评论数据。
  *
  */
-
 define('DISQUS_PUBKEY', 'E8Uh5l5fHZ6gD8U3KycjAIAk46f68Zw7C6eW8WSjZvCLXebZ7p0r1yrYDrLilk2F');
 define('PUBLIC_KEY', getenv('PUBLIC_KEY'));
 define('SECRET_KEY', getenv('SECRET_KEY'));
@@ -36,7 +38,21 @@ define('DISQUS_WEBSITE', getenv('DISQUS_WEBSITE'));
 define('DISQUS_SHORTNAME', getenv('DISQUS_SHORTNAME'));
 define('DISQUS_APPROVED', getenv('DISQUS_APPROVED'));
 define('DISQUS_BLACKLIST', getenv('DISQUS_BLACKLIST'));
-
+define('MOD_IDENT', getenv('MOD_IDENT'));
+define('USE_TEMP', getenv('USE_TEMP'));
+/*
+* 网络设置
+*
+* IP_MODE        IP 模式，在墙内可尝试设置为 true，将指定 IP，不保证能够访问 Disqus API
+* DISQUS_IP      disqus.com IP 地址，可选：151.101.0.134, 151.101.64.134, 151.101.128.134, 151.101.192.134
+* DISQUS_MEDIAIP uploads.services.disqus.com IP 地址，可选：151.101.24.64, 151.101.40.64, 151.101.52.64
+* DISQUS_LOGINIP import.disqus.com IP 地址，可选：151.101.40.134
+*
+*/
+define('IP_MODE', getenv('IP_MODE'));
+define('DISQUS_IP', getenv('DISQUS_IP'));
+define('DISQUS_MEDIAIP', getenv('DISQUS_MEDIAIP'));
+define('DISQUS_LOGINIP', getenv('DISQUS_LOGINIP'));
 /*
  * 图片设置
  *
@@ -49,7 +65,6 @@ define('DISQUS_BLACKLIST', getenv('DISQUS_BLACKLIST'));
 define('GRAVATAR_CDN', getenv('GRAVATAR_CDN'));
 define('GRAVATAR_DEFAULT', getenv('GRAVATAR_DEFAULT'));
 define('EMOJI_PATH', getenv('EMOJI_PATH'));
-
 /*
  * PHP Mailer 设置
  *
@@ -62,7 +77,6 @@ define('EMOJI_PATH', getenv('EMOJI_PATH'));
  * SMTP_FROMNAME  发件人的名称，可以留空
  *
  */
-
 define('SMTP_SECURE', getenv('SMTP_SECURE'));
 define('SMTP_HOST', getenv('SMTP_HOST'));
 define('SMTP_PORT', getenv('SMTP_PORT'));
